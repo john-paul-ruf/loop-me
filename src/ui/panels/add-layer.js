@@ -2,7 +2,7 @@
 /**
  * Add-layer modal (mocks/add-layer.html, FR-5, FR-6, FR-9).
  *
- * Shows all 16 types grouped by role with their CSS impression previews.
+ * Shows all 32 types grouped by role with their CSS impression previews.
  * Picking a type adds it **on top** with randomized in-bounds parameters —
  * never a blank default that renders nothing. Unreachable while the governor
  * warns (the Add layer button in the composition panel is disabled with
@@ -52,6 +52,22 @@ const VIZ_CLASS = {
   14: 'v-scan',
   15: 'v-vig',
   16: 'v-grain',
+  17: 'v-web',
+  18: 'v-squares',
+  19: 'v-sun',
+  20: 'v-pulse',
+  21: 'v-star',
+  22: 'v-coil',
+  23: 'v-prism',
+  24: 'v-checker',
+  25: 'v-stipple',
+  26: 'v-lattice',
+  27: 'v-cwaves',
+  28: 'v-triang',
+  29: 'v-leak',
+  30: 'v-tint',
+  31: 'v-haze',
+  32: 'v-sweep',
 }
 
 /** Role dot class per role name. */

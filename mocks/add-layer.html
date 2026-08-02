@@ -46,6 +46,22 @@
   .v-scan  { background: repeating-linear-gradient(180deg, #B0B6C0 0 2px, transparent 2px 7px); }
   .v-vig   { background: radial-gradient(ellipse at 50% 50%, #7C4DFF 0%, #07060D 84%); }
   .v-grain { background: repeating-linear-gradient(0deg, rgba(255,255,255,.5) 0 1px, transparent 1px 2px), repeating-linear-gradient(90deg, rgba(0,0,0,.6) 0 1px, transparent 1px 3px); }
+  .v-web      { background: repeating-conic-gradient(from 0deg at 50% 50%, #FF2E88 0 1deg, transparent 1deg 10deg), repeating-radial-gradient(circle at 50% 50%, rgba(255,46,136,.25) 0 1px, transparent 1px 7px); }
+  .v-squares  { background: repeating-linear-gradient(0deg, transparent 0 3px, #00E5FF 3px 4px, transparent 4px 8px), repeating-linear-gradient(90deg, transparent 0 3px, #00E5FF 3px 4px, transparent 4px 8px); }
+  .v-sun      { background: repeating-conic-gradient(from 0deg at 50% 50%, #FFD400 0 20deg, transparent 20deg 45deg); }
+  .v-pulse    { background: repeating-radial-gradient(circle at 50% 50%, #00FFA3 0 2px, transparent 2px 5px, #00FFA3 5px 6px, transparent 6px 9px); }
+  .v-star     { background: repeating-conic-gradient(from 0deg at 50% 50%, #7C4DFF 0 3deg, transparent 3deg 45deg); mask-image: radial-gradient(circle at 50% 50%, #000 5%, transparent 75%); }
+  .v-coil     { background: repeating-conic-gradient(from 0deg at 40% 40%, #FF2E88 0 1deg, transparent 1deg 15deg); }
+  .v-prism    { background: conic-gradient(from 0deg at 50% 50%, #00E5FF 0 120deg, transparent 120deg 360deg); mask-image: radial-gradient(circle at 50% 50%, #000 0%, #000 80%, transparent 100%); }
+  .v-checker  { background: repeating-conic-gradient(from 0deg at 50% 50%, #FFD400 0 45deg, #0A0912 0 90deg); }
+  .v-stipple  { background: radial-gradient(circle at 20% 25%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 65% 40%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 85% 70%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 35% 75%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 55% 55%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 15% 85%, #00FFA3 0 2px, transparent 2px); }
+  .v-lattice  { background: repeating-linear-gradient(30deg, #B0B6C0 0 1px, transparent 1px 7px), repeating-linear-gradient(-30deg, #B0B6C0 0 1px, transparent 1px 7px); }
+  .v-cwaves   { background: repeating-radial-gradient(circle at 50% 50%, #7C4DFF 0 1px, transparent 1px 6px); mask-image: radial-gradient(circle at 50% 50%, #000 15%, transparent 90%); }
+  .v-triang   { background: repeating-linear-gradient(0deg, #FFD400 0 1px, transparent 1px 8px), repeating-linear-gradient(60deg, #FFD400 0 1px, transparent 1px 8px), repeating-linear-gradient(-60deg, #FFD400 0 1px, transparent 1px 8px); }
+  .v-leak     { background: radial-gradient(circle at 30% 65%, rgba(255,46,136,.9), transparent 55%); }
+  .v-tint     { background: linear-gradient(55deg, rgba(124,77,255,.8), transparent 70%); }
+  .v-haze     { background: radial-gradient(circle at 25% 35%, rgba(0,229,255,.7), transparent 30%), radial-gradient(circle at 70% 55%, rgba(0,229,255,.5), transparent 28%), radial-gradient(circle at 45% 75%, rgba(0,229,255,.6), transparent 32%); }
+  .v-sweep    { background: repeating-linear-gradient(30deg, #B0B6C0 0 2px, transparent 2px 7px); }
 </style>
 </head>
 <body>
@@ -70,6 +86,13 @@
       <button class="type"><span class="type__viz"><i class="v-petal"></i></span><span class="type__name">Petal Bloom</span></button>
       <button class="type"><span class="type__viz"><i class="v-orbit"></i></span><span class="type__name">Orbit Dots</span></button>
       <button class="type"><span class="type__viz"><i class="v-arc"></i></span><span class="type__name">Arc Gates</span></button>
+      <button class="type"><span class="type__viz"><i class="v-web"></i></span><span class="type__name">Spiral Web</span></button>
+      <button class="type"><span class="type__viz"><i class="v-squares"></i></span><span class="type__name">Nested Squares</span></button>
+      <button class="type"><span class="type__viz"><i class="v-sun"></i></span><span class="type__name">Sunburst</span></button>
+      <button class="type"><span class="type__viz"><i class="v-pulse"></i></span><span class="type__name">Pulse Rings</span></button>
+      <button class="type"><span class="type__viz"><i class="v-star"></i></span><span class="type__name">Burst Star</span></button>
+      <button class="type"><span class="type__viz"><i class="v-coil"></i></span><span class="type__name">Ribbon Coil</span></button>
+      <button class="type"><span class="type__viz"><i class="v-prism"></i></span><span class="type__name">Prism Shard</span></button>
     </div>
 
     <div class="role-head"><span class="role-dot role-dot--secondary"></span> Secondary — full-frame texture</div>
@@ -79,6 +102,11 @@
       <button class="type"><span class="type__viz"><i class="v-gridp"></i></span><span class="type__name">Grid Pulse</span></button>
       <button class="type"><span class="type__viz"><i class="v-sine"></i></span><span class="type__name">Sine Ribbons</span></button>
       <button class="type"><span class="type__viz"><i class="v-cross"></i></span><span class="type__name">Crosshatch</span></button>
+      <button class="type"><span class="type__viz"><i class="v-checker"></i></span><span class="type__name">Checker Wave</span></button>
+      <button class="type"><span class="type__viz"><i class="v-stipple"></i></span><span class="type__name">Stipple Field</span></button>
+      <button class="type"><span class="type__viz"><i class="v-lattice"></i></span><span class="type__name">Lattice Weave</span></button>
+      <button class="type"><span class="type__viz"><i class="v-cwaves"></i></span><span class="type__name">Concentric Waves</span></button>
+      <button class="type"><span class="type__viz"><i class="v-triang"></i></span><span class="type__name">Triangulation</span></button>
     </div>
 
     <div class="role-head"><span class="role-dot role-dot--overlay"></span> Overlay — final-pass mood</div>
@@ -87,12 +115,16 @@
       <button class="type"><span class="type__viz"><i class="v-scan"></i></span><span class="type__name">Scan Lines</span></button>
       <button class="type"><span class="type__viz"><i class="v-vig"></i></span><span class="type__name">Vignette Wash</span></button>
       <button class="type"><span class="type__viz"><i class="v-grain"></i></span><span class="type__name">Grain</span></button>
+      <button class="type"><span class="type__viz"><i class="v-leak"></i></span><span class="type__name">Light Leak</span></button>
+      <button class="type"><span class="type__viz"><i class="v-tint"></i></span><span class="type__name">Soft Tint</span></button>
+      <button class="type"><span class="type__viz"><i class="v-haze"></i></span><span class="type__name">Dot Haze</span></button>
+      <button class="type"><span class="type__viz"><i class="v-sweep"></i></span><span class="type__name">Stripe Sweep</span></button>
     </div>
   </div>
 </div>
 
 <div class="mocknote" style="position:fixed;bottom:0;left:0;right:0;z-index:60">
-  <b>add-layer.html</b> — FR-5, FR-6. Sixteen types grouped by role, each with a static CSS impression so the
+  <b>add-layer.html</b> — FR-5, FR-6. Thirty-two types grouped by role, each with a static CSS impression so the
   names mean something before you've used them. Picking a type adds it on top with randomized in-bounds
   parameters — never a blank default that renders nothing. When the governor is warning, this dialog is
   unreachable and the Add layer button carries a visible reason (see states.html).

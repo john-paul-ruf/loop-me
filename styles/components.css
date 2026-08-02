@@ -117,7 +117,7 @@
 .role-head:first-child { margin-top: 0; }
 
 /* Tiny per-type previews — static CSS impressions, not the real render.
-   One per layer type ID, 1..16, in registry order. */
+   One per layer type ID, 1..32, in registry order. */
 .v-ray   { background: repeating-conic-gradient(from 0deg at 50% 50%, #FF2E88 0 2deg, transparent 2deg 10deg); mask-image: radial-gradient(circle,transparent 10%,#000 22%,#000 60%,transparent 78%); }
 .v-nth   { background: repeating-radial-gradient(circle at 50% 50%, transparent 0 5px, #00E5FF 5px 6px, transparent 6px 12px); }
 .v-poly  { background: conic-gradient(from 0deg, #7C4DFF 0 100%); mask-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 6px, #000 6px 7px, transparent 7px 15px); }
@@ -134,6 +134,23 @@
 .v-scan  { background: repeating-linear-gradient(180deg, #B0B6C0 0 2px, transparent 2px 7px); }
 .v-vig   { background: radial-gradient(ellipse at 50% 50%, #7C4DFF 0%, #07060D 84%); }
 .v-grain { background: repeating-linear-gradient(0deg, rgba(255,255,255,.5) 0 1px, transparent 1px 2px), repeating-linear-gradient(90deg, rgba(0,0,0,.6) 0 1px, transparent 1px 3px); }
+/* SESSION: double-effects — IDs 17–32, appended in registry order. */
+.v-web      { background: repeating-conic-gradient(from 0deg at 50% 50%, #FF2E88 0 1deg, transparent 1deg 10deg), repeating-radial-gradient(circle at 50% 50%, rgba(255,46,136,.25) 0 1px, transparent 1px 7px); }
+.v-squares  { background: repeating-linear-gradient(0deg, transparent 0 3px, #00E5FF 3px 4px, transparent 4px 8px), repeating-linear-gradient(90deg, transparent 0 3px, #00E5FF 3px 4px, transparent 4px 8px); }
+.v-sun      { background: repeating-conic-gradient(from 0deg at 50% 50%, #FFD400 0 20deg, transparent 20deg 45deg); }
+.v-pulse    { background: repeating-radial-gradient(circle at 50% 50%, #00FFA3 0 2px, transparent 2px 5px, #00FFA3 5px 6px, transparent 6px 9px); }
+.v-star     { background: repeating-conic-gradient(from 0deg at 50% 50%, #7C4DFF 0 3deg, transparent 3deg 45deg); mask-image: radial-gradient(circle at 50% 50%, #000 5%, transparent 75%); }
+.v-coil     { background: repeating-conic-gradient(from 0deg at 40% 40%, #FF2E88 0 1deg, transparent 1deg 15deg); }
+.v-prism    { background: conic-gradient(from 0deg at 50% 50%, #00E5FF 0 120deg, transparent 120deg 360deg); mask-image: radial-gradient(circle at 50% 50%, #000 0%, #000 80%, transparent 100%); }
+.v-checker  { background: repeating-conic-gradient(from 0deg at 50% 50%, #FFD400 0 45deg, #0A0912 0 90deg); }
+.v-stipple  { background: radial-gradient(circle at 20% 25%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 65% 40%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 85% 70%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 35% 75%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 55% 55%, #00FFA3 0 2px, transparent 2px), radial-gradient(circle at 15% 85%, #00FFA3 0 2px, transparent 2px); }
+.v-lattice  { background: repeating-linear-gradient(30deg, #B0B6C0 0 1px, transparent 1px 7px), repeating-linear-gradient(-30deg, #B0B6C0 0 1px, transparent 1px 7px); }
+.v-cwaves   { background: repeating-radial-gradient(circle at 50% 50%, #7C4DFF 0 1px, transparent 1px 6px); mask-image: radial-gradient(circle at 50% 50%, #000 15%, transparent 90%); }
+.v-triang   { background: repeating-linear-gradient(0deg, #FFD400 0 1px, transparent 1px 8px), repeating-linear-gradient(60deg, #FFD400 0 1px, transparent 1px 8px), repeating-linear-gradient(-60deg, #FFD400 0 1px, transparent 1px 8px); }
+.v-leak     { background: radial-gradient(circle at 30% 65%, rgba(255,46,136,.9), transparent 55%); }
+.v-tint     { background: linear-gradient(55deg, rgba(124,77,255,.8), transparent 70%); }
+.v-haze     { background: radial-gradient(circle at 25% 35%, rgba(0,229,255,.7), transparent 30%), radial-gradient(circle at 70% 55%, rgba(0,229,255,.5), transparent 28%), radial-gradient(circle at 45% 75%, rgba(0,229,255,.6), transparent 32%); }
+.v-sweep    { background: repeating-linear-gradient(30deg, #B0B6C0 0 2px, transparent 2px 7px); }
 
 /* ------------------------------------------------------------
    5. SCHEMES (mocks/schemes.html)

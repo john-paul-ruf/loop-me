@@ -40,6 +40,10 @@ import * as stippleField from '../layers/stipple-field.js'
 import * as latticeWeave from '../layers/lattice-weave.js'
 import * as concentricWaves from '../layers/concentric-waves.js'
 import * as triangulation from '../layers/triangulation.js'
+import * as lightLeak from '../layers/light-leak.js'
+import * as softTint from '../layers/soft-tint.js'
+import * as dotHaze from '../layers/dot-haze.js'
+import * as stripeSweep from '../layers/stripe-sweep.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -264,3 +268,7 @@ register(stippleField)
 register(latticeWeave)
 register(concentricWaves)
 register(triangulation)
+register(lightLeak)
+register(softTint)
+register(dotHaze)
+register(stripeSweep)
