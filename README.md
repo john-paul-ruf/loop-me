@@ -220,3 +220,5 @@ deviation records for every task.
 
 GitHub Pages, `main` branch, `/` (root) source. No Actions workflow, no build step, no `dist/`.
 Push and it is live.
+
+**Live site:** <https://john-paul-ruf.github.io/loop-me/>
