@@ -1,0 +1,309 @@
+/* ============================================================
+   components.css — everything the mocks declared in a per-page
+   <style> block or an inline style= attribute, lifted here.
+
+   CSP (architecture §11.2) is `style-src 'self'` with no
+   'unsafe-inline': no style= attributes and no <style> blocks may
+   exist in the shipped document. Genuinely dynamic values —
+   swatch colours, band positions, the live tick, meter fill —
+   become CSS custom properties written with
+   element.style.setProperty(), which CSP does not govern.
+
+   Loads after _tokens.css, so the few rules below that restate a
+   token selector are deliberate overrides, noted where they occur.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. DYNAMIC VALUES — the custom-property surface
+   Every one of these was an inline style= in the mocks.
+   ------------------------------------------------------------ */
+
+/* mocks/layer-editor.html: .track__band style="left:16%;width:53%" */
+.track__band {
+  left: var(--band-left, 0%);
+  width: var(--band-width, 0%);
+}
+
+/* mocks/layer-editor.html: .track__thumb style="left:16%" */
+.track__thumb { left: var(--thumb-left, 0%); }
+
+/* mocks/layer-editor.html: .track__now style="left:60%"
+   OVERRIDE of _tokens.css §9: the live tick is the only thing in the UI
+   that moves at 60 Hz, so it is driven by transform rather than `left`
+   — a transform write does not invalidate layout (design §8 Q1,
+   architecture §13 Q3). ui/controls/tick.js supplies --tick-x in px. */
+.track__now {
+  left: 0;
+  transform: translateX(var(--tick-x, 0px));
+  will-change: transform;
+}
+/* Hidden — not removed — when the layer's opacity resolves to 0, so the
+   band does not reflow as it comes and goes (design §3). */
+.track__now--hidden { visibility: hidden; }
+
+/* mocks/main.html: .seed-meter__fill style="width:23%" */
+.seed-meter__fill { width: var(--meter-fill, 0%); }
+/* mocks/states.html: the near-limit state, amber past 3,000 chars */
+.seed-meter__fill--warn { background: var(--warn); }
+.seed-meter__count--warn { color: var(--warn); }
+
+/* mocks/schemes.html + layer-editor.html: .swatch style="background:#D94F30" */
+.swatch { background: var(--swatch, transparent); }
+/* Restated because the rule above would otherwise win on source order. */
+.swatch--add { background: var(--ink-800); }
+
+/* mocks/main.html + schemes.html: .scheme-strip i style="background:#FF2E88" */
+.scheme-strip i { background: var(--sw, transparent); }
+
+/* ------------------------------------------------------------
+   2. STAGE STATUS PILL (mocks/main.html)
+   Separators and the fps dot were inline colours. The dot is never
+   the only signal — it is always paired with the numeral.
+   ------------------------------------------------------------ */
+.stage-status__dot { color: var(--ok); }
+.stage-status__dot--warn { color: var(--warn); }
+.stage-status__dot--paused { color: var(--text-faint); }
+.stage-status__sep { color: var(--line-strong); }
+/* mocks/states.html shows the pill inline inside a panel. */
+.stage-status--static { position: static; transform: none; display: inline-flex; }
+
+/* ------------------------------------------------------------
+   3. COMPOSITION PANEL (mocks/main.html)
+   ------------------------------------------------------------ */
+
+/* The scheme card is a button: style="width:100%;text-align:left;cursor:pointer" */
+.card--button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.card--button:hover { background: var(--ink-700); }
+
+/* li.layer style="border-color:var(--accent);background:var(--accent-soft)" */
+.layer--selected { border-color: var(--accent); background: var(--accent-soft); }
+
+/* Reorder buttons disable at the ends rather than going silently inert
+   (design §6). Disabled styling comes from _tokens.css §5. */
+
+/* ------------------------------------------------------------
+   4. ADD LAYER (mocks/add-layer.html)
+   ------------------------------------------------------------ */
+.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s2); }
+@media (min-width: 520px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+
+.type {
+  text-align: left; cursor: pointer;
+  background: var(--ink-800); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: var(--s3);
+  display: flex; flex-direction: column; gap: var(--s2);
+  min-height: 104px;
+}
+.type:hover { background: var(--ink-700); border-color: var(--line-strong); }
+.type__viz {
+  height: 46px; border-radius: var(--r-sm); overflow: hidden;
+  position: relative; background: #0A0912; border: 1px solid var(--line);
+}
+.type__viz i { position: absolute; inset: 0; }
+.type__name { font-size: var(--f-sm); font-weight: 700; }
+
+.role-head {
+  display: flex; align-items: center; gap: var(--s2);
+  font-size: var(--f-xs); font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--text-faint);
+  margin: var(--s5) 0 var(--s3);
+}
+.role-head:first-child { margin-top: 0; }
+
+/* Tiny per-type previews — static CSS impressions, not the real render.
+   One per layer type ID, 1..16, in registry order. */
+.v-ray   { background: repeating-conic-gradient(from 0deg at 50% 50%, #FF2E88 0 2deg, transparent 2deg 10deg); mask-image: radial-gradient(circle,transparent 10%,#000 22%,#000 60%,transparent 78%); }
+.v-nth   { background: repeating-radial-gradient(circle at 50% 50%, transparent 0 5px, #00E5FF 5px 6px, transparent 6px 12px); }
+.v-poly  { background: conic-gradient(from 0deg, #7C4DFF 0 100%); mask-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 6px, #000 6px 7px, transparent 7px 15px); }
+.v-spir  { background: repeating-conic-gradient(from 10deg at 50% 50%, #00FFA3 0 1deg, transparent 1deg 22deg); mask-image: radial-gradient(circle,transparent 14%,#000 40%,transparent 76%); }
+.v-petal { background: repeating-conic-gradient(from 0deg at 50% 50%, #FFD400 0 5deg, transparent 5deg 30deg); mask-image: radial-gradient(ellipse 44% 40% at 50% 50%, #000 40%, transparent 84%); }
+.v-orbit { background: repeating-conic-gradient(from 0deg at 50% 50%, #00E5FF 0 4deg, transparent 4deg 42deg); mask-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 6px, #000 6px 9px, transparent 9px 16px); }
+.v-arc   { background: repeating-conic-gradient(from 30deg at 50% 50%, #FF2E88 0 44deg, transparent 44deg 90deg); mask-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 7px, #000 7px 11px, transparent 11px 18px); }
+.v-line  { background: repeating-linear-gradient(24deg, #00E5FF 0 2px, transparent 2px 11px); }
+.v-moire { background: repeating-linear-gradient(2deg, #B0B6C0 0 1px, transparent 1px 6px), repeating-linear-gradient(11deg, #B0B6C0 0 1px, transparent 1px 6px); }
+.v-gridp { background: repeating-linear-gradient(0deg, #7C4DFF 0 4px, transparent 4px 12px), repeating-linear-gradient(90deg, #7C4DFF 0 4px, transparent 4px 12px); }
+.v-sine  { background: repeating-linear-gradient(90deg, #00FFA3 0 2px, transparent 2px 9px); mask-image: repeating-linear-gradient(0deg, #000 0 3px, transparent 3px 14px); }
+.v-cross { background: repeating-linear-gradient(45deg, #FFD400 0 1px, transparent 1px 7px), repeating-linear-gradient(-45deg, #FFD400 0 1px, transparent 1px 7px); }
+.v-fuzz  { background: radial-gradient(circle at 30% 40%, rgba(255,46,136,.9), transparent 42%), radial-gradient(circle at 70% 60%, rgba(255,212,0,.8), transparent 42%); }
+.v-scan  { background: repeating-linear-gradient(180deg, #B0B6C0 0 2px, transparent 2px 7px); }
+.v-vig   { background: radial-gradient(ellipse at 50% 50%, #7C4DFF 0%, #07060D 84%); }
+.v-grain { background: repeating-linear-gradient(0deg, rgba(255,255,255,.5) 0 1px, transparent 1px 2px), repeating-linear-gradient(90deg, rgba(0,0,0,.6) 0 1px, transparent 1px 3px); }
+
+/* ------------------------------------------------------------
+   5. SCHEMES (mocks/schemes.html)
+   ------------------------------------------------------------ */
+.scheme {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: var(--ink-800); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: var(--s3); margin-bottom: var(--s2);
+}
+.scheme:hover { background: var(--ink-700); }
+.scheme[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.scheme__top { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2); }
+.scheme__name { font-weight: 700; flex: 1 1 auto; }
+.scheme__tick { color: var(--accent); font-weight: 700; }
+
+.bucket-row { margin-bottom: var(--s4); }
+.bucket-row .between { margin-bottom: var(--s2); }
+
+/* ------------------------------------------------------------
+   6. GALLERY (mocks/gallery.html)
+   ------------------------------------------------------------ */
+.entry {
+  display: flex; align-items: flex-start; gap: var(--s3);
+  padding: var(--s3);
+  background: var(--ink-800); border: 1px solid var(--line);
+  border-radius: var(--r-md); margin-bottom: var(--s2);
+}
+.entry__main { flex: 1 1 auto; min-width: 0; }
+.entry__title { font-weight: 600; margin-bottom: 2px; }
+/* No description: fall back to a truncated seed so the row is never empty. */
+.entry__title--none { color: var(--text-faint); font-family: var(--mono); font-size: var(--f-sm); }
+.entry__meta { font-size: var(--f-sm); color: var(--text-dim); display: flex; gap: var(--s2); flex-wrap: wrap; }
+.entry__meta .dur {
+  font-family: var(--mono); background: var(--ink-700);
+  padding: 0 6px; border-radius: var(--r-sm); color: var(--text);
+}
+.entry__acts { display: flex; gap: var(--s1); flex: 0 0 auto; }
+.entry__acts .btn { min-height: 38px; width: 38px; padding: 0; }
+.search { margin-bottom: var(--s4); }
+
+/* Delete confirmation is inline, not a stacked dialog. */
+.entry--confirm {
+  border-color: var(--danger); background: var(--danger-soft);
+  flex-direction: column; align-items: stretch;
+}
+.entry--confirm .between { width: 100%; }
+.entry__warn { color: #FFB3BE; }
+
+/* ------------------------------------------------------------
+   7. SHARE (mocks/share.html) and error states (mocks/states.html)
+   ------------------------------------------------------------ */
+.divider { border-top: 1px solid var(--line); margin: var(--s5) 0 var(--s4); }
+
+/* Clipboard fallback: the field is selected and outlined so "press ⌘C"
+   has something visible to point at (FR-13, CLIPBOARD_UNAVAILABLE). */
+.input--selected { border-color: var(--cyan); }
+
+/* Toast and banner mount point (#feedback in index.html). Fixed above the
+   dock so a confirmation is never hidden behind the sheet, and
+   pointer-transparent so it can never swallow a tap meant for Randomize.
+   Below the splash's z-index 50: nothing outranks the FR-0 gate. */
+.feedback {
+  position: fixed;
+  left: 50%; bottom: var(--s4);
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: var(--s2);
+  width: min(520px, calc(100% - var(--s5)));
+  z-index: 40;
+  pointer-events: none;
+}
+.feedback > * { pointer-events: auto; }
+.feedback:empty { display: none; }
+.feedback .banner { margin-bottom: 0; width: 100%; }
+
+/* Reduced motion / user-paused: a still first frame under an
+   unmissable Play (FR-17). */
+.pause-overlay {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  background: rgba(7,6,11,.72);
+  z-index: 4;
+}
+.pause-overlay__inner { text-align: center; max-width: 280px; }
+.btn--play { min-height: 56px; padding: 0 var(--s5); font-size: var(--f-lg); }
+
+/* ------------------------------------------------------------
+   8. RANGE INPUTS — the native dual-thumb band substrate
+   Architecture §12.3: two stacked native <input type="range">, not
+   a custom pointer-events widget. These inputs are visually
+   transparent and ride inside .track — their thumbs are invisible,
+   and the visible thumbs (.track__thumb) are positioned by JS from
+   the input values. The inputs carry keyboard, screen-reader, and
+   pointer semantics for free.
+
+   Each input is kept interactive (pointer-events:auto, native drag —
+   reliable) and clipped to its own half of the track via clip-path,
+   split at the thumb midpoint (--band-split, written by band.js's
+   syncVisuals). clip-path clips hit-testing too, so the min input owns
+   [0..split] and the max input owns [split..100%]: both thumbs stay
+   grabbable (incl. max pinned at 100%) and a track click moves the
+   nearer thumb. z-index only breaks the tie on the zero-width seam.
+   (Supersedes the unreliable pointer-events:none-on-input +
+   pointer-events:auto-on-thumb trick that regressed dragging.)
+   ------------------------------------------------------------ */
+.range-input {
+  position: absolute;
+  inset-inline: 0;
+  width: 100%;
+  height: var(--tap);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  outline: none;
+  pointer-events: auto;   /* native drag — reliable (cf. the failed thumb-only trick) */
+}
+.range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  cursor: pointer;
+}
+.range-input::-moz-range-thumb {
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+/* Each input is clipped to its own half of the track, split at the thumb
+   midpoint (--band-split, written by band.js). clip-path clips hit-testing
+   too, so the min input owns the left half and the max input the right half:
+   both thumbs stay grabbable (incl. max at 100%) and a track click moves the
+   nearer thumb. z-index only breaks the tie on the 0-width seam. (§12.3, §13 Q2) */
+.range-input--min {
+  z-index: 4;
+  clip-path: inset(0 calc(100% - var(--band-split, 50%)) 0 0);
+}
+.range-input--max {
+  z-index: 3;
+  clip-path: inset(0 0 0 var(--band-split, 50%));
+}
+/* When focused, show the focus ring on the matching visible thumb. */
+.track:focus-within .track__thumb { box-shadow: 0 0 0 2px var(--ink-950), 0 0 0 4px var(--cyan); }
+
+/* ------------------------------------------------------------
+   9. UTILITIES the mocks expressed inline
+   ------------------------------------------------------------ */
+.btn--block { width: 100%; }
+.btn--auto  { width: auto; padding: 0 var(--s3); }
+.btn--fixed { flex: 0 0 auto; }
+
+.modal--md   { width: min(600px, 100%); }
+.modal--wide { width: min(720px, 100%); }
+
+.inline-acts { display: flex; gap: var(--s2); }
+
+/* Kills the uppercase eyebrow treatment for a parenthetical inside a
+   .label or .section__title — mocks used style="text-transform:none". */
+.note { text-transform: none; letter-spacing: 0; }
+
+.m-0  { margin: 0; }
+.mt-2 { margin-top: var(--s2); }
+.mt-3 { margin-top: var(--s3); }
+.mt-4 { margin-top: var(--s4); }
+.mt-5 { margin-top: var(--s5); }
+.mb-2 { margin-bottom: var(--s2); }
+.mb-3 { margin-bottom: var(--s3); }
+.mb-4 { margin-bottom: var(--s4); }

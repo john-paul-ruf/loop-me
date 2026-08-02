@@ -1,0 +1,95 @@
+/* ============================================================
+   screens.css — splash, panel sub-headers, tabs.
+
+   Lifted from the per-page <style> blocks of mocks/splash.html,
+   mocks/splash-seeded.html, mocks/layer-editor.html and
+   mocks/schemes.html per architecture §11.2.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   SPLASH — the FR-0 flash-safety gate.
+   Nothing renders behind this screen. The stage is deliberately
+   empty — not blurred art, not a dimmed canvas. Blank.
+   ------------------------------------------------------------ */
+.splash-bg { position: fixed; inset: 0; background: var(--ink-950); }
+
+.wordmark {
+  font-size: var(--f-2xl); font-weight: 800; letter-spacing: -.02em;
+  margin-bottom: var(--s2);
+}
+.wordmark span { color: var(--accent); }
+
+.tagline { color: var(--text-dim); font-size: var(--f-md); margin-bottom: var(--s5); }
+/* With a shared loop to announce, the tagline tightens up so the whole
+   dialog still reads as one column at 375px. ui/splash.js adds
+   .splash--seeded when it unhides .shared. */
+.splash--seeded .tagline { margin-bottom: var(--s4); }
+
+/* Shown only when a seed was decoded from the hash (FR-0). */
+.shared {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  margin-bottom: var(--s4);
+}
+.shared__icon { font-size: 20px; }
+.shared__t { font-weight: 700; color: #FFB9D6; }
+.shared__m { font-size: var(--f-sm); color: var(--text-dim); }
+
+.warn-card {
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  border-radius: var(--r-md);
+  padding: var(--s4);
+  margin-bottom: var(--s4);
+}
+.warn-card h2 {
+  font-size: var(--f-md); font-weight: 700; color: #FFD98A;
+  margin-bottom: var(--s2); display: flex; gap: var(--s2); align-items: center;
+}
+.warn-card p { font-size: var(--f-md); color: #FFE7B8; line-height: 1.55; }
+
+/* Shown only when prefers-reduced-motion: reduce is detected (FR-17).
+   Reduced motion overrides splash suppression — even a user who
+   dismissed the splash enters paused. */
+.rm-note {
+  display: flex; gap: var(--s3); align-items: flex-start;
+  font-size: var(--f-sm); color: var(--text-dim);
+  background: var(--ink-800); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: var(--s3); margin-bottom: var(--s4);
+}
+
+/* The block above Enter carries --s4; this adds the remaining --s2 so the
+   gap is --s5 whichever optional blocks are present. */
+.enter { width: 100%; min-height: 54px; font-size: var(--f-lg); margin-top: var(--s2); }
+
+.footnote { font-size: var(--f-sm); color: var(--text-faint); margin-top: var(--s4); text-align: center; }
+
+/* ------------------------------------------------------------
+   PANEL SUB-HEADER (mocks/layer-editor.html)
+   Sits between the dock grabber and the pinned action bar, so the
+   way back out of L1 is never below the fold.
+   ------------------------------------------------------------ */
+.subhead {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+.subhead__title { font-size: var(--f-lg); font-weight: 700; flex: 1 1 auto; }
+
+.motion-help { font-size: var(--f-sm); color: var(--text-dim); margin-bottom: var(--s3); }
+
+/* ------------------------------------------------------------
+   TABS (mocks/schemes.html)
+   ------------------------------------------------------------ */
+.tabs { display: flex; gap: var(--s2); border-bottom: 1px solid var(--line); margin-bottom: var(--s4); }
+.tab {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: var(--s3) var(--s2); min-height: var(--tap);
+  color: var(--text-dim); font-weight: 700; font-size: var(--f-sm); cursor: pointer;
+}
+/* Selected state is weight AND colour AND border AND aria-selected —
+   never colour alone. */
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }

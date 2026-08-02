@@ -1,0 +1,11 @@
+{
+  "confirmedPhases": [
+    "idea",
+    "requirements",
+    "design",
+    "architecture",
+    "database",
+    "prototype"
+  ],
+  "overriddenPhases": []
+}

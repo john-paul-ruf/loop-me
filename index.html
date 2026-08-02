@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- GitHub Pages cannot set headers, so the policy is delivered as a meta
+     element (architecture §11.2). connect-src 'none' hard-enforces "no
+     network requests after initial page load" — it becomes a property of
+     the document rather than a promise in a review checklist.
+     Consequence: no style= attributes and no <style> blocks anywhere in
+     this file or in DOM built by JS. Dynamic styling goes through
+     element.style.setProperty(), which CSP does not govern. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>loop-me</title>
+<link rel="stylesheet" href="styles/_tokens.css">
+<link rel="stylesheet" href="styles/base.css">
+<link rel="stylesheet" href="styles/layout.css">
+<link rel="stylesheet" href="styles/components.css">
+<link rel="stylesheet" href="styles/screens.css">
+<script type="module" src="src/main.js"></script>
+</head>
+<body>
+
+<!-- ============================================================
+     APP SHELL
+     Present from first parse so the splash has something to hand
+     focus to, but `inert` until the FR-0 gate is passed. ui/splash.js
+     (session F1) clears the attribute on Enter. The canvas carries
+     `hidden` and stays hidden until the same moment: painter.paint()
+     is unreachable before boot step 8 (architecture §7).
+     ============================================================ -->
+<div class="app" id="app" inert>
+
+  <main class="stage" id="stage">
+    <div class="stagebar" id="stagebar">
+      <span class="stagebar__brand">loop-me</span>
+      <span class="stagebar__spacer"></span>
+      <button class="btn btn--icon btn--sm" id="btn-playpause" type="button" aria-label="Pause"><span class="btn__glyph" aria-hidden="true">⏸</span></button>
+      <button class="btn btn--icon btn--sm" id="btn-viewonly" type="button" aria-label="Hide all controls (view only)"><span class="btn__glyph" aria-hidden="true">⤢</span></button>
+      <button class="btn btn--icon btn--sm" id="btn-menu" type="button" aria-label="Menu"><span class="btn__glyph" aria-hidden="true">☰</span></button>
+    </div>
+
+    <!-- The backing store is always exactly 1080x1920. width/height are
+         set here and never changed — not for DPR, not for viewport size
+         (architecture §6.1). Fit-scaling is pure CSS. -->
+    <div class="canvas-frame" id="canvas-frame">
+      <canvas id="canvas" width="1080" height="1920" role="img" aria-label="Generative animation" hidden></canvas>
+    </div>
+
+    <div class="stage-status" id="stage-status">
+      <span class="stage-status__dot" id="fps-dot" aria-hidden="true">●</span>
+      <span id="fps-text">— fps</span>
+      <span class="stage-status__sep" aria-hidden="true">|</span>
+      <span id="elapsed-text">00.0s / 15s</span>
+      <span class="stage-status__sep" aria-hidden="true">|</span>
+      <span id="layers-text">0 layers</span>
+    </div>
+  </main>
+
+  <aside class="dock dock--expanded" id="dock" aria-label="Composition controls">
+    <button class="dock__grabber" id="dock-grabber" type="button" aria-label="Collapse controls" aria-expanded="true"></button>
+
+    <!-- Persistent. Randomize is one tap from anywhere, including view-only. -->
+    <div class="actionbar" id="actionbar">
+      <button class="btn btn--primary" id="btn-randomize" type="button"><span class="btn__glyph" aria-hidden="true">⚄</span> Randomize</button>
+      <button class="btn btn--icon" id="btn-share" type="button" aria-label="Share"><span class="btn__glyph" aria-hidden="true">↗</span></button>
+      <button class="btn btn--icon" id="btn-save" type="button" aria-label="Save to gallery"><span class="btn__glyph" aria-hidden="true">♥</span></button>
+      <button class="btn btn--icon" id="btn-undo" type="button" aria-label="Undo last change"><span class="btn__glyph" aria-hidden="true">↺</span></button>
+    </div>
+
+    <!-- Panels render into here: composition (L0), layer editor (L1). -->
+    <div class="dock__scroll" id="dock-scroll"></div>
+  </aside>
+
+</div>
+
+<!-- ============================================================
+     SPLASH — FR-0.
+     STATIC MARKUP. It needs zero JS to paint, which is what buys
+     "time to splash paint < 300 ms" with certainty (architecture §7
+     step 1). ui/splash.js operates on these nodes; it never rebuilds
+     them. Enter starts disabled and is enabled in boot step 6, once
+     the composition is acquired and pre-warmed.
+     ============================================================ -->
+<div class="splash-bg" id="splash-bg"></div>
+
+<div class="scrim" id="splash">
+  <div class="modal" id="splash-modal" role="dialog" aria-modal="true" aria-labelledby="sp-title" aria-describedby="sp-warn">
+
+    <h1 class="wordmark" id="sp-title">loop<span>-</span>me</h1>
+    <p class="tagline">Endless looping generative art. Mash randomize, tweak what you like, send the good ones to a friend.</p>
+
+    <!-- Unhidden by ui/splash.js when a seed was decoded from the hash. -->
+    <div class="shared" id="sp-shared" hidden>
+      <span class="shared__icon" aria-hidden="true">◎</span>
+      <div>
+        <div class="shared__t">Someone shared a loop with you</div>
+        <div class="shared__m" id="sp-shared-meta"></div>
+      </div>
+    </div>
+
+    <div class="warn-card">
+      <h2><span aria-hidden="true">⚠</span> Before you go in</h2>
+      <p id="sp-warn">
+        What comes next <strong>flashes, strobes and moves quickly</strong>, with
+        high-contrast colour. If you are sensitive to flashing lights, or you get
+        migraines or seizures from moving images, please don't continue.
+      </p>
+    </div>
+
+    <!-- Unhidden by ui/splash.js when prefers-reduced-motion: reduce is set. -->
+    <div class="rm-note" id="sp-rm-note" hidden>
+      <span aria-hidden="true">⏸</span>
+      <span>Your device asks for reduced motion, so this will open
+      <strong>paused on a single still frame</strong>. There's a Play button when you want it.</span>
+    </div>
+
+    <!-- Enabled and focused in boot step 6. Never auto-dismisses, never
+         counts down, never animates. -->
+    <button class="btn btn--primary enter" id="sp-enter" type="button" disabled>Enter</button>
+
+    <label class="check">
+      <input type="checkbox" id="sp-suppress">
+      <span>Don't show this again on this device</span>
+    </label>
+
+    <p class="footnote">
+      This setting is saved on this device only. Anyone you share a loop with
+      still sees this warning first.
+    </p>
+
+  </div>
+</div>
+
+<!-- Banners and toasts mount here, above the dock, below the splash. -->
+<div class="feedback" id="feedback"></div>
+
+<!-- The single aria-live region for the whole app. ui/feedback.js is its
+     only writer; every toast announces through it (architecture §12.3). -->
+<div class="sr-only" id="live" role="status" aria-live="polite" aria-atomic="true"></div>
+
+</body>
+</html>

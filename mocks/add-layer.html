@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add layer — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s2); }
+  @media (min-width: 520px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  .type {
+    text-align: left; cursor: pointer;
+    background: var(--ink-800); border: 1px solid var(--line);
+    border-radius: var(--r-md); padding: var(--s3);
+    display: flex; flex-direction: column; gap: var(--s2);
+    min-height: 104px;
+  }
+  .type:hover { background: var(--ink-700); border-color: var(--line-strong); }
+  .type__viz {
+    height: 46px; border-radius: var(--r-sm); overflow: hidden;
+    position: relative; background: #0A0912; border: 1px solid var(--line);
+  }
+  .type__viz i { position: absolute; inset: 0; }
+  .type__name { font-size: var(--f-sm); font-weight: 700; }
+  .role-head {
+    display: flex; align-items: center; gap: var(--s2);
+    font-size: var(--f-xs); font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--text-faint);
+    margin: var(--s5) 0 var(--s3);
+  }
+  .role-head:first-child { margin-top: 0; }
+  /* Tiny per-type previews — static CSS impressions, not the real render. */
+  .v-ray   { background: repeating-conic-gradient(from 0deg at 50% 50%, #FF2E88 0 2deg, transparent 2deg 10deg); mask-image: radial-gradient(circle,transparent 10%,#000 22%,#000 60%,transparent 78%); }
+  .v-nth   { background: repeating-radial-gradient(circle at 50% 50%, transparent 0 5px, #00E5FF 5px 6px, transparent 6px 12px); }
+  .v-poly  { background: conic-gradient(from 0deg, #7C4DFF 0 100%); mask-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 6px, #000 6px 7px, transparent 7px 15px); }
+  .v-spir  { background: repeating-conic-gradient(from 10deg at 50% 50%, #00FFA3 0 1deg, transparent 1deg 22deg); mask-image: radial-gradient(circle,transparent 14%,#000 40%,transparent 76%); }
+  .v-petal { background: repeating-conic-gradient(from 0deg at 50% 50%, #FFD400 0 5deg, transparent 5deg 30deg); mask-image: radial-gradient(ellipse 44% 40% at 50% 50%, #000 40%, transparent 84%); }
+  .v-orbit { background: repeating-conic-gradient(from 0deg at 50% 50%, #00E5FF 0 4deg, transparent 4deg 42deg); mask-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 6px, #000 6px 9px, transparent 9px 16px); }
+  .v-arc   { background: repeating-conic-gradient(from 30deg at 50% 50%, #FF2E88 0 44deg, transparent 44deg 90deg); mask-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 7px, #000 7px 11px, transparent 11px 18px); }
+  .v-line  { background: repeating-linear-gradient(24deg, #00E5FF 0 2px, transparent 2px 11px); }
+  .v-moire { background: repeating-linear-gradient(2deg, #B0B6C0 0 1px, transparent 1px 6px), repeating-linear-gradient(11deg, #B0B6C0 0 1px, transparent 1px 6px); }
+  .v-gridp { background: repeating-linear-gradient(0deg, #7C4DFF 0 4px, transparent 4px 12px), repeating-linear-gradient(90deg, #7C4DFF 0 4px, transparent 4px 12px); }
+  .v-sine  { background: repeating-linear-gradient(90deg, #00FFA3 0 2px, transparent 2px 9px); mask-image: repeating-linear-gradient(0deg, #000 0 3px, transparent 3px 14px); }
+  .v-cross { background: repeating-linear-gradient(45deg, #FFD400 0 1px, transparent 1px 7px), repeating-linear-gradient(-45deg, #FFD400 0 1px, transparent 1px 7px); }
+  .v-fuzz  { background: radial-gradient(circle at 30% 40%, rgba(255,46,136,.9), transparent 42%), radial-gradient(circle at 70% 60%, rgba(255,212,0,.8), transparent 42%); }
+  .v-scan  { background: repeating-linear-gradient(180deg, #B0B6C0 0 2px, transparent 2px 7px); }
+  .v-vig   { background: radial-gradient(ellipse at 50% 50%, #7C4DFF 0%, #07060D 84%); }
+  .v-grain { background: repeating-linear-gradient(0deg, rgba(255,255,255,.5) 0 1px, transparent 1px 2px), repeating-linear-gradient(90deg, rgba(0,0,0,.6) 0 1px, transparent 1px 3px); }
+</style>
+</head>
+<body>
+<div class="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="al-title" style="width:min(720px,100%)">
+    <div class="between" style="margin-bottom:var(--s4)">
+      <h1 class="modal__title" id="al-title" style="margin:0">Add a layer</h1>
+      <button class="btn btn--icon" aria-label="Close">✕</button>
+    </div>
+
+    <p class="hint" style="margin:0 0 var(--s4)">
+      You have 4 of 5 layers. A good composition usually mixes roles —
+      structure, then texture, then mood on top.
+    </p>
+
+    <div class="role-head"><span class="role-dot role-dot--primary"></span> Primary — centre-anchored structure</div>
+    <div class="grid">
+      <button class="type"><span class="type__viz"><i class="v-ray"></i></span><span class="type__name">Ray Rings</span></button>
+      <button class="type"><span class="type__viz"><i class="v-nth"></i></span><span class="type__name">Nth Rings</span></button>
+      <button class="type"><span class="type__viz"><i class="v-poly"></i></span><span class="type__name">Layered Poly</span></button>
+      <button class="type"><span class="type__viz"><i class="v-spir"></i></span><span class="type__name">Encircled Spiral</span></button>
+      <button class="type"><span class="type__viz"><i class="v-petal"></i></span><span class="type__name">Petal Bloom</span></button>
+      <button class="type"><span class="type__viz"><i class="v-orbit"></i></span><span class="type__name">Orbit Dots</span></button>
+      <button class="type"><span class="type__viz"><i class="v-arc"></i></span><span class="type__name">Arc Gates</span></button>
+    </div>
+
+    <div class="role-head"><span class="role-dot role-dot--secondary"></span> Secondary — full-frame texture</div>
+    <div class="grid">
+      <button class="type"><span class="type__viz"><i class="v-line"></i></span><span class="type__name">Line Field</span></button>
+      <button class="type"><span class="type__viz"><i class="v-moire"></i></span><span class="type__name">Moiré Grid</span></button>
+      <button class="type"><span class="type__viz"><i class="v-gridp"></i></span><span class="type__name">Grid Pulse</span></button>
+      <button class="type"><span class="type__viz"><i class="v-sine"></i></span><span class="type__name">Sine Ribbons</span></button>
+      <button class="type"><span class="type__viz"><i class="v-cross"></i></span><span class="type__name">Crosshatch</span></button>
+    </div>
+
+    <div class="role-head"><span class="role-dot role-dot--overlay"></span> Overlay — final-pass mood</div>
+    <div class="grid">
+      <button class="type"><span class="type__viz"><i class="v-fuzz"></i></span><span class="type__name">Fuzz Flare</span></button>
+      <button class="type"><span class="type__viz"><i class="v-scan"></i></span><span class="type__name">Scan Lines</span></button>
+      <button class="type"><span class="type__viz"><i class="v-vig"></i></span><span class="type__name">Vignette Wash</span></button>
+      <button class="type"><span class="type__viz"><i class="v-grain"></i></span><span class="type__name">Grain</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="mocknote" style="position:fixed;bottom:0;left:0;right:0;z-index:60">
+  <b>add-layer.html</b> — FR-5, FR-6. Sixteen types grouped by role, each with a static CSS impression so the
+  names mean something before you've used them. Picking a type adds it on top with randomized in-bounds
+  parameters — never a blank default that renders nothing. When the governor is warning, this dialog is
+  unreachable and the Add layer button carries a visible reason (see states.html).
+</div>
+</body>
+</html>

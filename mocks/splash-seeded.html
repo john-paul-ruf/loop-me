@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splash (shared seed + reduced motion) — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .splash-bg { position: fixed; inset: 0; background: var(--ink-950); }
+  .wordmark { font-size: var(--f-2xl); font-weight: 800; letter-spacing: -.02em; margin-bottom: var(--s2); }
+  .wordmark span { color: var(--accent); }
+  .tagline { color: var(--text-dim); font-size: var(--f-md); margin-bottom: var(--s4); }
+  .shared {
+    display: flex; align-items: center; gap: var(--s3);
+    padding: var(--s3) var(--s4);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-md);
+    margin-bottom: var(--s4);
+  }
+  .shared__icon { font-size: 20px; }
+  .shared__t { font-weight: 700; color: #FFB9D6; }
+  .shared__m { font-size: var(--f-sm); color: var(--text-dim); }
+  .warn-card {
+    border: 1px solid var(--warn); background: var(--warn-soft);
+    border-radius: var(--r-md); padding: var(--s4); margin-bottom: var(--s4);
+  }
+  .warn-card h2 { font-size: var(--f-md); font-weight: 700; color: #FFD98A; margin-bottom: var(--s2); display: flex; gap: var(--s2); align-items: center; }
+  .warn-card p { font-size: var(--f-md); color: #FFE7B8; line-height: 1.55; }
+  .rm-note {
+    display: flex; gap: var(--s3); align-items: flex-start;
+    font-size: var(--f-sm); color: var(--text-dim);
+    background: var(--ink-800); border: 1px solid var(--line);
+    border-radius: var(--r-md); padding: var(--s3); margin-bottom: var(--s5);
+  }
+  .enter { width: 100%; min-height: 54px; font-size: var(--f-lg); }
+  .footnote { font-size: var(--f-sm); color: var(--text-faint); margin-top: var(--s4); text-align: center; }
+</style>
+</head>
+<body>
+<div class="splash-bg"></div>
+
+<div class="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sp-title" aria-describedby="sp-warn">
+
+    <h1 class="wordmark" id="sp-title">loop<span>-</span>me</h1>
+    <p class="tagline">Endless looping generative art.</p>
+
+    <!-- FR-0: with a seed in the URL, say so, and name the duration. -->
+    <div class="shared">
+      <span class="shared__icon" aria-hidden="true">◎</span>
+      <div>
+        <div class="shared__t">Someone shared a loop with you</div>
+        <div class="shared__m">A 15-second loop · 4 layers · ready to play</div>
+      </div>
+    </div>
+
+    <div class="warn-card">
+      <h2><span aria-hidden="true">⚠</span> Before you go in</h2>
+      <p id="sp-warn">
+        What comes next <strong>flashes, strobes and moves quickly</strong>, with
+        high-contrast colour. If you are sensitive to flashing lights, or you get
+        migraines or seizures from moving images, please don't continue.
+      </p>
+    </div>
+
+    <!-- Shown only when prefers-reduced-motion: reduce is detected. -->
+    <div class="rm-note">
+      <span aria-hidden="true">⏸</span>
+      <span>Your device asks for reduced motion, so this will open
+      <strong>paused on a single still frame</strong>. There's a Play button when you want it.</span>
+    </div>
+
+    <button class="btn btn--primary enter" autofocus>Enter</button>
+
+    <label class="check">
+      <input type="checkbox">
+      <span>Don't show this again on this device</span>
+    </label>
+
+    <p class="footnote">
+      This setting is saved on this device only. Anyone you share a loop with
+      still sees this warning first.
+    </p>
+
+  </div>
+</div>
+
+<div class="mocknote" style="position:fixed;bottom:0;left:0;right:0;z-index:60">
+  <b>splash-seeded.html</b> — FR-0 shared-seed variant, shown here with the FR-17 reduced-motion note
+  also present. Suppression is per device and never travels in a seed, so a first-time recipient always
+  lands here. Reduced-motion overrides suppression: even a user who dismissed the splash enters paused.
+</div>
+</body>
+</html>

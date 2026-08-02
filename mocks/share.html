@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Share &amp; save — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sh-title">
+    <div class="between" style="margin-bottom:var(--s4)">
+      <h1 class="modal__title" id="sh-title" style="margin:0">Share this loop</h1>
+      <button class="btn btn--icon" aria-label="Close">✕</button>
+    </div>
+
+    <!-- Primary action first: most people want the link, not the raw seed. -->
+    <div class="field">
+      <label class="label" for="url">Link</label>
+      <div class="seedbox">
+        <input class="input input--mono" id="url" readonly
+               value="https://johnruf.github.io/loop-me/#s=1zQ2hlbWVOZW9uTmlnaHQtNC1sYXll…">
+        <button class="btn btn--primary" style="flex:0 0 auto"><span class="btn__glyph" aria-hidden="true">⧉</span> Copy</button>
+      </div>
+      <p class="hint">The loop lives entirely in the link. Nothing is uploaded anywhere.</p>
+    </div>
+
+    <div class="field">
+      <label class="label" for="seed">Seed only</label>
+      <div class="seedbox">
+        <input class="input input--mono" id="seed" readonly
+               value="1zQ2hlbWVOZW9uTmlnaHQtNC1sYXllci1jb21wb3NpdGlvbi1zZWVk…">
+        <button class="btn" style="flex:0 0 auto"><span class="btn__glyph" aria-hidden="true">⧉</span></button>
+      </div>
+      <div class="seed-meter">
+        <div class="seed-meter__bar"><div class="seed-meter__fill" style="width:23%"></div></div>
+        <span class="mono">912 characters</span>
+      </div>
+    </div>
+
+    <!-- Shown only when the composition uses a custom scheme. -->
+    <div class="banner">
+      <span class="banner__icon" aria-hidden="true">◈</span>
+      <div class="banner__body">
+        <div class="banner__title">Your scheme “Rust Bloom” is baked in</div>
+        Whoever opens this sees your exact colours.
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--line);margin:var(--s5) 0 var(--s4)"></div>
+
+    <div class="field">
+      <label class="label" for="desc">Save to your gallery</label>
+      <textarea class="textarea" id="desc" placeholder="What is this one? (optional)">slow rust spiral, good one</textarea>
+      <button class="btn btn--primary" style="width:100%;margin-top:var(--s2)">
+        <span class="btn__glyph" aria-hidden="true">♥</span> Save
+      </button>
+    </div>
+
+    <div style="border-top:1px solid var(--line);margin:var(--s5) 0 var(--s4)"></div>
+
+    <div class="field" style="margin-bottom:0">
+      <label class="label" for="paste">Open someone else's</label>
+      <div class="seedbox">
+        <input class="input input--mono" id="paste" placeholder="Paste a seed or a full link">
+        <button class="btn" style="flex:0 0 auto">Load</button>
+      </div>
+      <p class="hint">A bare seed or a whole URL both work. Extra spaces are fine.</p>
+    </div>
+
+    <div style="margin-top:var(--s5);display:flex;justify-content:center">
+      <span class="toast"><span class="toast__tick" aria-hidden="true">✓</span> Link copied</span>
+    </div>
+  </div>
+</div>
+
+<div class="mocknote" style="position:fixed;bottom:0;left:0;right:0;z-index:60">
+  <b>share.html</b> — FR-12, FR-13, FR-14. Copy Link is the primary action and Copy Seed is secondary, because
+  the common case is pasting into a chat. The character meter turns amber past 3,000 and warns before the
+  4,000 ceiling. Copy confirmation is a toast <em>and</em> an aria-live announcement; where the Clipboard API
+  is unavailable the field auto-selects with “press ⌘C” guidance instead of failing quietly.
+</div>
+</body>
+</html>

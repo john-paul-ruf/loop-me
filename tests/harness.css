@@ -1,0 +1,24 @@
+/* Report styling for tests/index.html.
+   A separate file rather than a <style> block so the test page obeys the
+   same no-inline-CSS discipline as the app (architecture §11.2), and so the
+   harness reporter needs no CSSOM writes just to colour a line. */
+
+.testpage { max-width: 860px; margin: 0 auto; padding: var(--s5) var(--s4) var(--s8); }
+.testpage h1 { font-size: var(--f-xl); margin-bottom: var(--s2); }
+.testpage .lede { color: var(--text-dim); margin-bottom: var(--s5); }
+
+.summary {
+  font-family: var(--mono); font-size: var(--f-md); font-weight: 700;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line-strong); border-radius: var(--r-md);
+  margin-bottom: var(--s5);
+}
+.summary--pass { color: var(--ok); border-color: var(--ok); background: rgba(0,255,163,.08); }
+.summary--fail { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+
+#report { font-family: var(--mono); font-size: var(--f-sm); line-height: 1.7; }
+.suite { color: var(--cyan); font-weight: 700; margin-top: var(--s4); }
+.case { white-space: pre; }
+.case--pass { color: var(--text-dim); }
+.case--fail { color: var(--danger); font-weight: 700; }
+.trace { white-space: pre-wrap; color: #FFB3BE; padding-left: var(--s4); }

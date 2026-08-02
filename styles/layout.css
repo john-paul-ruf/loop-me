@@ -1,0 +1,93 @@
+/* ============================================================
+   layout.css — stage / dock / rail states.
+
+   The shell itself (.app, .stage, .canvas-frame, .dock, the 960px
+   switch) lives in _tokens.css. This file carries the state
+   modifiers the mocks put in per-page <style> blocks, lifted per
+   architecture §11.2.
+   ============================================================ */
+
+/* ---------- The render target ---------- */
+/* Backing store is fixed at 1080x1920 and set once in JS (architecture
+   §6.1). Fit-scaling is pure CSS — no resize handler participates. */
+.canvas-frame > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Letterbox is the stage's background, painted with the active scheme's
+   resolved background colour. render/canvas.js writes --stage-bg on the
+   stage element whenever the scheme changes; until then it is the app
+   backdrop. */
+.stage { background: var(--stage-bg, var(--ink-950)); }
+
+/* ---------- Dock states (mobile bottom sheet only) ---------- */
+/* Peek shows the grabber and the pinned action bar and nothing else, so
+   Randomize stays under the thumb at every sheet height. Expanded is the
+   62dvh default from _tokens.css, restated so the modifier is explicit
+   in markup rather than implied by absence.
+
+   Scoped to <960px: these are bottom-sheet states, and at >=960px the
+   dock is a full-height side rail (_tokens.css §3, `max-height: none`).
+   Media queries add no specificity, and this file loads after
+   _tokens.css — unscoped, `.dock--expanded { max-height: 62dvh }` would
+   out-cascade the desktop rail override and cap the rail at 62% of the
+   viewport, clipping the panels below it. */
+@media (max-width: 959.98px) {
+  .dock--peek .dock__scroll { display: none; }
+  .dock--expanded { max-height: 62dvh; }
+
+  /* While the grabber is being dragged, suppress the height transition
+     so the sheet tracks the finger exactly. */
+  .dock--dragging { transition: none; }
+}
+
+/* Desktop rail re-lift. In _tokens.css the >=960px rail override (§3)
+   sits BEFORE the §4 sheet base rules, so at equal specificity §4's
+   `max-height: 62dvh` and `.dock__grabber { display: block }` win on
+   desktop too — the rail stays capped and keeps its grabber. _tokens.css
+   is a verbatim mock copy and is never edited, so the lift §3 intends is
+   restated here, in a later stylesheet, where the cascade makes it stick
+   (responsive contract: >=960px rail is full height, grabber hidden). */
+@media (min-width: 960px) {
+  .dock { max-height: none; }
+  .dock__grabber { display: none; }
+}
+
+/* ---------- View-only (mocks/view-only.html) ---------- */
+.stage--full { padding: 0; }
+.canvas-frame--full { border-radius: 0; box-shadow: none; }
+
+/* The only chrome that survives view-only: a single control cluster that
+   fades to near-nothing and returns on tap, key press or pointer move.
+   Pause must remain reachable in every mode — flash safety is not optional.
+   28% and not 0: hover is never load-bearing (design §6), so this has to
+   be discoverable on a touch device with no pointer at all. */
+.ghost {
+  position: absolute; bottom: var(--s4); left: 50%; transform: translateX(-50%);
+  display: flex; gap: var(--s2); align-items: center;
+  padding: var(--s2);
+  background: rgba(7,6,11,.6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  backdrop-filter: blur(10px);
+  opacity: .28;
+  transition: opacity .25s var(--ease);
+  z-index: 6;
+}
+.ghost:hover, .ghost:focus-within { opacity: 1; }
+.ghost .btn { border-color: transparent; background: transparent; }
+
+.hint-pill {
+  position: absolute; top: var(--s4); left: 50%; transform: translateX(-50%);
+  padding: 6px var(--s3);
+  background: rgba(7,6,11,.7); backdrop-filter: blur(8px);
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+  font-size: var(--f-sm); color: var(--text-dim);
+  z-index: 6;
+  transition: opacity .4s var(--ease);
+}
+/* Fades out after a few seconds, returns on any input. Kept in the flow
+   (opacity, not [hidden]) so returning it costs no layout. */
+.hint-pill--faded { opacity: 0; }

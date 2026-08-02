@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>View only — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .stage--full { padding: 0; }
+  .canvas-frame--full { border-radius: 0; box-shadow: none; }
+  /* The only chrome that survives view-only: a single control cluster that
+     fades to near-nothing and returns on tap, key press or pointer move.
+     Pause must remain reachable in every mode — flash safety is not optional. */
+  .ghost {
+    position: absolute; bottom: var(--s4); left: 50%; transform: translateX(-50%);
+    display: flex; gap: var(--s2); align-items: center;
+    padding: var(--s2);
+    background: rgba(7,6,11,.6);
+    border: 1px solid var(--line);
+    border-radius: var(--r-pill);
+    backdrop-filter: blur(10px);
+    opacity: .28;
+    transition: opacity .25s var(--ease);
+    z-index: 6;
+  }
+  .ghost:hover, .ghost:focus-within { opacity: 1; }
+  .ghost .btn { border-color: transparent; background: transparent; }
+  .hint-pill {
+    position: absolute; top: var(--s4); left: 50%; transform: translateX(-50%);
+    padding: 6px var(--s3);
+    background: rgba(7,6,11,.7); backdrop-filter: blur(8px);
+    border: 1px solid var(--line); border-radius: var(--r-pill);
+    font-size: var(--f-sm); color: var(--text-dim);
+    z-index: 6;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="stage stage--full">
+
+    <p class="hint-pill">Tap anywhere for controls · Esc to exit</p>
+
+    <div class="canvas-frame canvas-frame--full">
+      <div class="art art--sea" role="img" aria-label="Generative animation in view-only mode: concentric rings and drifting line field on a deep blue background.">
+        <i class="art-rays"></i>
+        <i class="art-rings"></i>
+        <i class="art-lines"></i>
+        <i class="art-vignette"></i>
+        <i class="art-grain"></i>
+      </div>
+    </div>
+
+    <div class="ghost">
+      <button class="btn btn--icon" aria-label="Pause"><span class="btn__glyph" aria-hidden="true">⏸</span></button>
+      <button class="btn btn--icon" aria-label="Randomize"><span class="btn__glyph" aria-hidden="true">⚄</span></button>
+      <button class="btn btn--icon" aria-label="Show controls"><span class="btn__glyph" aria-hidden="true">⤡</span></button>
+    </div>
+
+  </main>
+</div>
+
+<div class="mocknote" style="position:fixed;bottom:0;left:0;right:0;z-index:60">
+  <b>view-only.html</b> — FR-16, FR-17. All chrome gone, canvas letterboxed edge to edge against the scheme's
+  background colour. Exit by tap, by Esc, or via the restore button — never requiring a reload. Pause and
+  Randomize survive here: Pause because flash safety must be reachable at all times, Randomize because
+  “one tap away” has no exceptions. The hint pill fades out after a few seconds and returns on any input.
+</div>
+</body>
+</html>

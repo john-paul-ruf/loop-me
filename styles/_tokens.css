@@ -1,0 +1,627 @@
+/* ============================================================
+   loop-me — design tokens & component primitives
+   Vanilla CSS. No build step, no framework, no CDN.
+
+   COPIED VERBATIM from mocks/_tokens.css (architecture §1,
+   design §1: "intended to be copied into src/ as the foundation
+   stylesheet, not reinterpreted").
+
+   Two blocks are omitted, both marked mock-only by Designer's own
+   comments in the source file:
+     - §19 PLACEHOLDER ART (.art*) — "NOT an implementation
+       reference — the real thing is 2D canvas"
+     - .mocknote — "Mock-only scaffolding — not part of the product"
+   Section numbering below is left unchanged so this file still
+   diffs cleanly against the mock.
+
+   This file's name begins with an underscore. GitHub Pages runs
+   Jekyll, which silently drops such files. /.nojekyll is what
+   stops that. Never delete it. (architecture §11.1)
+   ============================================================ */
+
+/* ---------- 1. TOKENS ---------- */
+:root {
+  /* Surfaces — chrome is near-black so the art owns all the color */
+  --ink-950: #07060B;   /* app backdrop, behind the stage */
+  --ink-900: #0E0D14;   /* sheet / rail background */
+  --ink-800: #16151E;   /* card, input background */
+  --ink-700: #1F1D29;   /* raised card, hover fill */
+  --ink-600: #2A2735;   /* pressed */
+
+  --line:        #2E2B3B;
+  --line-strong: #454154;
+
+  --text:       #F3F1F8;  /* 16.4:1 on ink-900 */
+  --text-dim:   #A6A2B8;  /*  7.9:1 on ink-900 */
+  --text-faint: #8A8699;  /*  5.4:1 on ink-900 — smallest allowed */
+
+  /* Accents — drawn from the Neon Night built-in scheme */
+  --accent:      #FF2E88;
+  --accent-ink:  #1A0410;  /* text ON accent — 8.1:1 */
+  --accent-soft: rgba(255, 46, 136, 0.14);
+  --cyan:        #00E5FF;
+  --cyan-ink:    #00181C;
+  --ok:          #00FFA3;
+  --warn:        #FFB300;
+  --warn-ink:    #1E1305;
+  --warn-soft:   rgba(255, 179, 0, 0.12);
+  --danger:      #FF6B82;
+  --danger-soft: rgba(255, 107, 130, 0.12);
+
+  /* Spacing — 4px base */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+
+  /* Radius */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 16px; --r-xl: 22px; --r-pill: 999px;
+
+  /* Elevation */
+  --sh-1: 0 1px 2px rgba(0,0,0,.45);
+  --sh-2: 0 8px 24px -8px rgba(0,0,0,.65);
+  --sh-3: 0 -14px 44px -14px rgba(0,0,0,.8);   /* bottom sheet lift */
+  --sh-modal: 0 32px 80px -24px rgba(0,0,0,.9);
+
+  /* Type — system stack only. No webfonts: page budget is 250 KB
+     and the app must make zero network requests after load. */
+  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --f-xs:   11px;  /* eyebrow labels, uppercase */
+  --f-sm:   13px;  /* meta, helper text */
+  --f-md:   15px;  /* body, control labels */
+  --f-lg:   18px;  /* section titles */
+  --f-xl:   24px;  /* screen titles */
+  --f-2xl:  34px;  /* splash wordmark */
+
+  /* Ergonomics */
+  --tap: 44px;                    /* minimum touch target */
+  --sheet-peek: 128px;            /* collapsed dock height */
+  --rail-w: 384px;                /* desktop side rail */
+
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ---------- 2. RESET ---------- */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--f-md);
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--ink-950);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3, p { margin: 0; }
+ul { margin: 0; padding: 0; list-style: none; }
+
+/* Focus: one visible ring everywhere. Never removed. */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ink-950), 0 0 0 4px var(--cyan);
+  border-radius: var(--r-sm);
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- 3. LAYOUT SHELL ---------- */
+/* Mobile: stage on top, dock sheet below.
+   Desktop >=960px: stage left, rail right. Same DOM, no duplication. */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: var(--ink-950);
+  padding: var(--s3);
+}
+
+/* The 1080x1920 render target, scaled to fit. Letterbox is whatever
+   shows around it — painted with the active scheme's background color. */
+.canvas-frame {
+  position: relative;
+  aspect-ratio: 1080 / 1920;
+  height: 100%;
+  max-width: 100%;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: var(--sh-2);
+}
+
+@media (min-width: 960px) {
+  .app { flex-direction: row; }
+  .stage { padding: var(--s5); }
+  .dock {
+    width: var(--rail-w);
+    flex: 0 0 var(--rail-w);
+    border-radius: 0;
+    border-left: 1px solid var(--line);
+    border-top: none;
+    box-shadow: none;
+    max-height: none;
+  }
+  .dock__grabber { display: none; }
+}
+
+/* ---------- 4. DOCK / BOTTOM SHEET ---------- */
+.dock {
+  position: relative;
+  background: var(--ink-900);
+  border-top: 1px solid var(--line);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: var(--sh-3);
+  display: flex;
+  flex-direction: column;
+  max-height: 62dvh;
+  flex: 0 0 auto;
+}
+.dock--peek { max-height: none; }
+
+.dock__grabber {
+  display: block;
+  width: 100%;
+  padding: var(--s2) 0 var(--s1);
+  background: none; border: 0; cursor: pointer;
+  min-height: 28px;
+}
+.dock__grabber::before {
+  content: ""; display: block; width: 40px; height: 4px; margin: 0 auto;
+  background: var(--line-strong); border-radius: var(--r-pill);
+}
+
+.dock__scroll {
+  overflow-y: auto;
+  padding: 0 var(--s4) var(--s4);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Always-visible primary action bar. Randomize is never more than one tap away. */
+.actionbar {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
+}
+.actionbar .btn--primary { flex: 1 1 auto; }
+
+/* ---------- 5. BUTTONS ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding: 0 var(--s4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--ink-800);
+  color: var(--text);
+  font-size: var(--f-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .12s var(--ease), border-color .12s var(--ease);
+  white-space: nowrap;
+}
+.btn:hover { background: var(--ink-700); }
+.btn:active { background: var(--ink-600); }
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.btn--primary:hover { background: #FF4E9A; border-color: #FF4E9A; }
+
+.btn--ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
+.btn--ghost:hover { background: var(--ink-800); color: var(--text); }
+
+.btn--danger { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+
+.btn--icon { width: var(--tap); padding: 0; flex: 0 0 auto; }
+
+.btn--sm { min-height: 34px; padding: 0 var(--s3); font-size: var(--f-sm); }
+
+.btn[disabled], .btn[aria-disabled="true"] {
+  opacity: .4;
+  cursor: not-allowed;
+  background: var(--ink-800);
+  border-color: var(--line);
+  color: var(--text-faint);
+}
+/* Disabled state must be explained in visible text, never hover-only.
+   Pair a [disabled] control with .hint--block. */
+
+.btn__glyph { font-size: 17px; line-height: 1; }
+
+/* ---------- 6. SEGMENTED CONTROL ---------- */
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.seg button {
+  flex: 1 1 0;
+  min-height: 38px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--f-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.seg button:hover { color: var(--text); background: var(--ink-700); }
+.seg button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+/* State is carried by fill AND weight AND aria-pressed — never color alone. */
+
+/* ---------- 7. CHIPS ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.chip {
+  min-height: 36px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--ink-800);
+  color: var(--text-dim);
+  font-size: var(--f-sm);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.chip:hover { color: var(--text); background: var(--ink-700); }
+.chip[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: #FFB9D6;
+}
+.chip[aria-pressed="true"]::before { content: "✓"; font-size: 12px; }
+
+/* ---------- 8. FIELDS ---------- */
+.field { margin-bottom: var(--s4); }
+.label {
+  display: block;
+  font-size: var(--f-xs);
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: var(--s2);
+}
+.input, .select, .textarea {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  background: var(--ink-800);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--text);
+}
+.textarea { padding: var(--s3); min-height: 76px; resize: vertical; line-height: 1.5; }
+.select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
+                    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 20px, calc(100% - 12px) 20px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: var(--s6);
+}
+.input--mono { font-family: var(--mono); font-size: var(--f-sm); }
+
+.hint { font-size: var(--f-sm); color: var(--text-dim); margin-top: var(--s2); }
+.hint--block {
+  display: flex; gap: var(--s2);
+  font-size: var(--f-sm); color: var(--warn);
+  margin-top: var(--s2);
+}
+
+.check { display: flex; align-items: flex-start; gap: var(--s3); cursor: pointer; padding: var(--s2) 0; }
+.check input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--accent); flex: 0 0 auto; }
+.check span { font-size: var(--f-md); color: var(--text-dim); }
+
+/* ---------- 9. PARAMETER ROW — the core control of the app ---------- */
+/* An animatable parameter is four values (min, max, times, algorithm).
+   The row shows the min–max band on the parameter's hard bounds, plus a
+   live tick for the value the engine is resolving RIGHT NOW. That live
+   tick is what makes a 4-value parameter legible at a glance. */
+.param {
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.param:last-child { border-bottom: 0; }
+
+.param__head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--s3); margin-bottom: var(--s2);
+}
+.param__name { font-size: var(--f-md); font-weight: 600; }
+.param__badge {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  padding: 2px 6px; border-radius: var(--r-sm);
+  background: var(--ink-700); color: var(--text-faint); margin-left: var(--s2);
+  text-transform: uppercase;
+}
+.param__badge--anim { background: rgba(0,229,255,.14); color: var(--cyan); }
+.param__now { font-family: var(--mono); font-size: var(--f-sm); color: var(--cyan); }
+
+.track {
+  position: relative;
+  height: 34px;
+  display: flex;
+  align-items: center;
+}
+.track__rail {
+  position: absolute; inset-inline: 0; height: 6px;
+  background: var(--ink-700); border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+}
+.track__band {
+  position: absolute; height: 6px;
+  background: linear-gradient(90deg, var(--accent), var(--cyan));
+  border-radius: var(--r-pill);
+}
+.track__thumb {
+  position: absolute; width: 22px; height: 22px; margin-left: -11px;
+  border-radius: 50%;
+  background: var(--text); border: 2px solid var(--ink-950);
+  box-shadow: var(--sh-1);
+  cursor: grab;
+}
+/* Hit area is padded to 44px even though the visual thumb is 22px. */
+.track__thumb::after { content: ""; position: absolute; inset: -11px; }
+.track__now {
+  position: absolute; width: 3px; height: 26px; margin-left: -1.5px;
+  background: var(--cyan); border-radius: 2px;
+  box-shadow: 0 0 10px var(--cyan);
+}
+.track__bounds {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px; color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.param__adv {
+  display: grid; grid-template-columns: 96px 1fr; gap: var(--s2) var(--s3);
+  align-items: center;
+  margin-top: var(--s3); padding: var(--s3);
+  background: var(--ink-800); border-radius: var(--r-md);
+  border: 1px solid var(--line);
+}
+.param__adv .label { margin: 0; }
+.param__adv .select, .param__adv .input { min-height: 38px; }
+
+/* Stepper for integer statics */
+.stepper { display: flex; align-items: center; gap: var(--s2); }
+.stepper .btn--icon { width: 38px; min-height: 38px; }
+.stepper__val {
+  min-width: 56px; text-align: center;
+  font-family: var(--mono); font-size: var(--f-md); font-weight: 600;
+}
+
+/* ---------- 10. SWITCH ---------- */
+.switch { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); min-height: var(--tap); cursor: pointer; }
+.switch__track {
+  position: relative; width: 46px; height: 28px; flex: 0 0 auto;
+  background: var(--ink-700); border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill); transition: background .15s var(--ease);
+}
+.switch__track::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--text-dim); transition: transform .15s var(--ease), background .15s var(--ease);
+}
+.switch[aria-checked="true"] .switch__track { background: var(--accent); border-color: var(--accent); }
+.switch[aria-checked="true"] .switch__track::after { transform: translateX(18px); background: var(--accent-ink); }
+
+/* ---------- 11. CARDS / SECTIONS ---------- */
+.section { padding: var(--s4) 0; border-bottom: 1px solid var(--line); }
+.section:last-child { border-bottom: 0; }
+.section__title {
+  font-size: var(--f-xs); font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--text-faint);
+  margin-bottom: var(--s3);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+}
+.card {
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--s3);
+}
+
+/* ---------- 12. LAYER ROW ---------- */
+.layer {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s2);
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-bottom: var(--s2);
+}
+.layer__grip {
+  width: 34px; min-height: 40px; border: 0; background: transparent;
+  color: var(--text-faint); cursor: grab; flex: 0 0 auto;
+  border-radius: var(--r-sm);
+}
+.layer__grip:hover { background: var(--ink-700); color: var(--text); }
+.layer__body { flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: 0; cursor: pointer; padding: var(--s1) 0; }
+.layer__name { font-size: var(--f-md); font-weight: 600; display: flex; align-items: center; gap: var(--s2); }
+.layer__meta {
+  font-size: var(--f-sm); color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.role-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.role-dot--primary   { background: var(--accent); }
+.role-dot--secondary { background: var(--cyan); }
+.role-dot--overlay   { background: var(--ok); }
+/* Role is also spelled out in .layer__meta text — the dot is redundant, not load-bearing. */
+
+.layer__order { display: flex; flex-direction: column; gap: 2px; }
+.layer__order .btn { min-height: 21px; padding: 0 6px; font-size: 10px; border-radius: 4px; }
+
+/* ---------- 13. DISCLOSURE ---------- */
+.disclosure { border-top: 1px solid var(--line); margin-top: var(--s3); }
+.disclosure__toggle {
+  width: 100%; min-height: var(--tap);
+  display: flex; align-items: center; justify-content: space-between;
+  background: none; border: 0; cursor: pointer;
+  color: var(--text-dim); font-size: var(--f-sm); font-weight: 600;
+  padding: 0;
+}
+.disclosure__toggle:hover { color: var(--text); }
+.disclosure__toggle .caret { transition: transform .15s var(--ease); }
+.disclosure__toggle[aria-expanded="true"] .caret { transform: rotate(90deg); }
+.disclosure__panel { padding-bottom: var(--s3); }
+
+/* ---------- 14. BANNERS & TOASTS ---------- */
+.banner {
+  display: flex; align-items: flex-start; gap: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--ink-800);
+  font-size: var(--f-sm);
+  margin-bottom: var(--s3);
+}
+.banner--warn  { background: var(--warn-soft);   border-color: var(--warn);   color: #FFD98A; }
+.banner--error { background: var(--danger-soft); border-color: var(--danger); color: #FFB3BE; }
+.banner__icon { flex: 0 0 auto; font-size: 16px; line-height: 1.3; }
+.banner__body { flex: 1 1 auto; }
+.banner__title { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+
+.toast {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  background: var(--ink-700);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  box-shadow: var(--sh-2);
+  font-size: var(--f-sm); font-weight: 600;
+}
+.toast__tick { color: var(--ok); }
+
+/* ---------- 15. SEED FIELD ---------- */
+.seedbox {
+  display: flex; gap: var(--s2); align-items: stretch;
+}
+.seedbox .input {
+  font-family: var(--mono); font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.seed-meter { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s2); font-size: var(--f-sm); color: var(--text-dim); }
+.seed-meter__bar { flex: 1 1 auto; height: 4px; background: var(--ink-700); border-radius: var(--r-pill); overflow: hidden; }
+.seed-meter__fill { height: 100%; background: var(--ok); }
+
+/* ---------- 16. MODAL / SPLASH ---------- */
+.scrim {
+  position: fixed; inset: 0;
+  background: var(--ink-950);
+  display: grid; place-items: center;
+  padding: var(--s4);
+  z-index: 50;
+}
+.modal {
+  width: min(520px, 100%);
+  max-height: 92dvh; overflow-y: auto;
+  background: var(--ink-900);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-modal);
+  padding: var(--s6) var(--s5) var(--s5);
+}
+.modal__title { font-size: var(--f-xl); font-weight: 700; margin-bottom: var(--s2); }
+
+/* ---------- 17. SWATCHES ---------- */
+.swatches { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.swatch {
+  width: 44px; height: 44px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  cursor: pointer; position: relative; padding: 0;
+}
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink-900), 0 0 0 4px var(--text); }
+.swatch--add {
+  background: var(--ink-800); color: var(--text-dim);
+  font-size: 20px; display: grid; place-items: center;
+  border-style: dashed;
+}
+.swatch__x {
+  position: absolute; top: -6px; right: -6px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--ink-700); border: 1px solid var(--line-strong);
+  color: var(--text-dim); font-size: 11px; line-height: 1; display: grid; place-items: center;
+}
+.scheme-strip { display: flex; height: 26px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--line); }
+.scheme-strip i { flex: 1 1 0; }
+
+/* ---------- 18. TOP OVERLAY BAR (on the stage) ---------- */
+.stagebar {
+  position: absolute; top: var(--s3); left: var(--s3); right: var(--s3);
+  display: flex; align-items: center; gap: var(--s2);
+  z-index: 5;
+}
+.stagebar__brand {
+  font-size: var(--f-sm); font-weight: 700; letter-spacing: .04em;
+  padding: var(--s2) var(--s3);
+  background: rgba(7,6,11,.72);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  backdrop-filter: blur(8px);
+}
+.stagebar__spacer { flex: 1 1 auto; }
+.stagebar .btn {
+  background: rgba(7,6,11,.72);
+  backdrop-filter: blur(8px);
+  border-color: var(--line);
+}
+
+.stage-status {
+  position: absolute; bottom: var(--s3); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: var(--s2);
+  padding: 6px var(--s3);
+  background: rgba(7,6,11,.72);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+  z-index: 5;
+}
+
+/* ---------- 19. PLACEHOLDER ART ----------
+   OMITTED. Mock-only: CSS stand-ins for canvas output, marked in the
+   source as "NOT an implementation reference". The real thing is 2D
+   canvas, built in src/layers/. */
+
+/* ---------- 20. UTILITIES ---------- */
+.stack > * + * { margin-top: var(--s3); }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.between { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.muted { color: var(--text-dim); }
+.small { font-size: var(--f-sm); }
+.mono { font-family: var(--mono); }
+.center { text-align: center; }
+
+/* .mocknote OMITTED — mock-only scaffolding, not part of the product. */

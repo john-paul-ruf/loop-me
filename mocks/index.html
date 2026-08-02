@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mock index — loop-me</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .wrap { max-width: 640px; margin: 0 auto; padding: var(--s6) var(--s4) var(--s8); }
+  h1 { font-size: var(--f-2xl); font-weight: 800; letter-spacing: -.02em; margin-bottom: var(--s2); }
+  h1 span { color: var(--accent); }
+  .lede { color: var(--text-dim); margin-bottom: var(--s6); }
+  .grp { font-size: var(--f-xs); font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+         color: var(--text-faint); margin: var(--s5) 0 var(--s3); }
+  .lnk {
+    display: flex; align-items: center; gap: var(--s3);
+    padding: var(--s3); margin-bottom: var(--s2);
+    background: var(--ink-800); border: 1px solid var(--line);
+    border-radius: var(--r-md); text-decoration: none; color: inherit;
+  }
+  .lnk:hover { background: var(--ink-700); border-color: var(--line-strong); }
+  .lnk__n { font-weight: 700; }
+  .lnk__d { font-size: var(--f-sm); color: var(--text-dim); }
+  .lnk__go { margin-left: auto; color: var(--text-faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>loop<span>-</span>me mocks</h1>
+  <p class="lede">Static design mocks. Vanilla HTML + CSS — no framework, no CDN, matching the
+  project's buildless constraint. <code class="mono">_tokens.css</code> is the shared token and
+  component sheet, intended to be lifted straight into <code class="mono">src/</code>.</p>
+
+  <div class="grp">Entry</div>
+  <a class="lnk" href="splash.html">
+    <div><div class="lnk__n">Splash — bare load</div><div class="lnk__d">FR-0 · flash-safety gate, first paint on every load</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+  <a class="lnk" href="splash-seeded.html">
+    <div><div class="lnk__n">Splash — shared seed</div><div class="lnk__d">FR-0, FR-17 · shared-loop notice + reduced-motion variant</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+
+  <div class="grp">Core</div>
+  <a class="lnk" href="main.html">
+    <div><div class="lnk__n">Main view</div><div class="lnk__d">FR-16 · canvas + dock, responsive sheet / rail</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+  <a class="lnk" href="layer-editor.html">
+    <div><div class="lnk__n">Layer editor</div><div class="lnk__d">FR-6, FR-10, FR-11 · parameters, motion, Advanced</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+  <a class="lnk" href="add-layer.html">
+    <div><div class="lnk__n">Add layer</div><div class="lnk__d">FR-5, FR-6 · all 16 types by role</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+  <a class="lnk" href="view-only.html">
+    <div><div class="lnk__n">View only</div><div class="lnk__d">FR-16, FR-17 · chrome hidden, Pause preserved</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+
+  <div class="grp">Colour, sharing, storage</div>
+  <a class="lnk" href="schemes.html">
+    <div><div class="lnk__n">Colour schemes</div><div class="lnk__d">FR-7, FR-8 · built-ins + custom scheme editor</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+  <a class="lnk" href="share.html">
+    <div><div class="lnk__n">Share &amp; save</div><div class="lnk__d">FR-12, FR-13, FR-14 · copy link / seed, paste, save</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+  <a class="lnk" href="gallery.html">
+    <div><div class="lnk__n">Gallery</div><div class="lnk__d">FR-14 · saved seeds, text only</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+
+  <div class="grp">Reference</div>
+  <a class="lnk" href="states.html">
+    <div><div class="lnk__n">States &amp; edge cases</div><div class="lnk__d">FR-15, FR-17, FR-18 · governor, errors, fallbacks</div></div>
+    <span class="lnk__go">›</span>
+  </a>
+
+  <p class="hint" style="margin-top:var(--s6)">
+    These are static. The clickable prototype — working navigation between screens —
+    comes in the prototype phase, replacing this page.
+  </p>
+</div>
+</body>
+</html>

@@ -1,0 +1,42 @@
+/* ============================================================
+   base.css — reset and typography level only.
+
+   _tokens.css already carries the reset, the focus ring and
+   .sr-only verbatim from Designer. This file holds what the
+   mocks could not express because they were separate pages:
+   the [hidden] contract and the reduced-motion query.
+   ============================================================ */
+
+/* LOAD-BEARING. Several components the app hides with the `hidden`
+   attribute set `display: flex` / `display: grid` in _tokens.css, and a
+   class-level `display` beats the UA stylesheet's `[hidden] { display:
+   none }`. Without !important here, the splash's shared-loop block and
+   reduced-motion note would render on a bare load — which is exactly
+   the FR-0 case that must look like mocks/splash.html. */
+[hidden] { display: none !important; }
+
+/* Nothing in the chrome may animate for a user who asked for stillness.
+   This governs UI transitions only. The canvas is gated separately:
+   architecture §12.3 reads prefers-reduced-motion once at boot and uses
+   it to withhold clock.start(), never to alter rendered content. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: .001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Long unbroken seeds must not force horizontal scroll at 375px
+   (design §7 a11y checklist). */
+body { text-wrap: pretty; }
+
+/* Text selection is meaningful on exactly one class of control — the
+   readonly seed/link fields, where the clipboard fallback depends on
+   it (FR-13). Everywhere else in a one-handed touch UI a long-press
+   selection is an accident. */
+.app { -webkit-user-select: none; user-select: none; }
+.input, .textarea, .mono, .seedbox .input { -webkit-user-select: text; user-select: text; }

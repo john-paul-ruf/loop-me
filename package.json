@@ -1,0 +1,21 @@
+{
+  "name": "loop-me",
+  "version": "1.0.0",
+  "description": "Endless looping generative art in a single page — no build step, no dependencies, no backend.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 8082 --bind 127.0.0.1",
+    "serve": "python3 -m http.server 8082 --bind 127.0.0.1",
+    "test": "python3 -m http.server 8082 --bind 127.0.0.1 && echo 'Open http://127.0.0.1:8082/tests/'",
+    "typecheck": "npx -y typescript --noEmit -p jsconfig.json"
+  },
+  "keywords": [
+    "generative-art",
+    "canvas",
+    "vanilla-js",
+    "buildless",
+    "es-modules"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layer editor — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .subhead {
+    display: flex; align-items: center; gap: var(--s2);
+    padding: var(--s3) var(--s4);
+    border-bottom: 1px solid var(--line);
+  }
+  .subhead__title { font-size: var(--f-lg); font-weight: 700; flex: 1 1 auto; }
+  .motion-help { font-size: var(--f-sm); color: var(--text-dim); margin-bottom: var(--s3); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <main class="stage">
+    <div class="stagebar">
+      <span class="stagebar__brand">loop-me</span>
+      <span class="stagebar__spacer"></span>
+      <button class="btn btn--icon btn--sm" aria-label="Pause"><span class="btn__glyph" aria-hidden="true">⏸</span></button>
+      <button class="btn btn--icon btn--sm" aria-label="Hide all controls"><span class="btn__glyph" aria-hidden="true">⤢</span></button>
+    </div>
+    <div class="canvas-frame">
+      <div class="art" role="img" aria-label="Generative animation, editing the Ray Rings layer.">
+        <i class="art-rays"></i><i class="art-rings"></i>
+        <i class="art-flare"></i><i class="art-vignette"></i><i class="art-grain"></i>
+      </div>
+    </div>
+    <div class="stage-status">
+      <span style="color:var(--ok)">●</span><span>60 fps</span>
+      <span style="color:var(--line-strong)">|</span><span>07.8s / 15s</span>
+    </div>
+  </main>
+
+  <aside class="dock" aria-label="Layer editor">
+    <button class="dock__grabber" aria-label="Collapse controls" aria-expanded="true"></button>
+
+    <div class="subhead">
+      <button class="btn btn--icon btn--sm" aria-label="Back to composition"><span class="btn__glyph" aria-hidden="true">‹</span></button>
+      <span class="subhead__title">Ray Rings</span>
+      <button class="btn btn--sm">Duplicate</button>
+      <button class="btn btn--sm btn--danger" aria-label="Delete layer">Delete</button>
+    </div>
+
+    <div class="actionbar">
+      <button class="btn btn--primary"><span class="btn__glyph" aria-hidden="true">⚄</span> Randomize</button>
+      <button class="btn btn--icon" aria-label="Undo last change"><span class="btn__glyph" aria-hidden="true">↺</span></button>
+    </div>
+
+    <div class="dock__scroll">
+
+      <!-- ---- Layer basics ---- -->
+      <div class="section">
+        <div class="field">
+          <label class="label" for="ltype">Layer type</label>
+          <select class="select" id="ltype">
+            <optgroup label="Primary — centre-anchored structure">
+              <option selected>Ray Rings</option><option>Nth Rings</option>
+              <option>Layered Poly</option><option>Encircled Spiral</option>
+              <option>Petal Bloom</option><option>Orbit Dots</option><option>Arc Gates</option>
+            </optgroup>
+            <optgroup label="Secondary — full-frame texture">
+              <option>Line Field</option><option>Moiré Grid</option><option>Grid Pulse</option>
+              <option>Sine Ribbons</option><option>Crosshatch</option>
+            </optgroup>
+            <optgroup label="Overlay — final-pass mood">
+              <option>Fuzz Flare</option><option>Scan Lines</option>
+              <option>Vignette Wash</option><option>Grain</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="field">
+          <span class="label">Blend mode</span>
+          <div class="chips" role="group" aria-label="Blend mode">
+            <button class="chip" aria-pressed="true">Normal</button>
+            <button class="chip" aria-pressed="false">Additive</button>
+            <button class="chip" aria-pressed="false">Screen</button>
+            <button class="chip" aria-pressed="false">Multiply</button>
+            <button class="chip" aria-pressed="false">Overlay</button>
+            <button class="chip" aria-pressed="false">Difference</button>
+            <button class="chip" aria-pressed="false">Hard light</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Colour</span>
+          <div class="card">
+            <div class="between" style="margin-bottom:var(--s3)">
+              <span class="small muted">Pull at random from a bucket, or pin one colour.</span>
+            </div>
+            <div class="seg" role="group" aria-label="Colour source" style="margin-bottom:var(--s3)">
+              <button aria-pressed="true">Colour</button>
+              <button aria-pressed="false">Neutral</button>
+              <button aria-pressed="false">Background</button>
+              <button aria-pressed="false">Pinned</button>
+            </div>
+            <div class="swatches">
+              <button class="swatch" style="background:#FF2E88" aria-pressed="true" aria-label="Pink, currently used"></button>
+              <button class="swatch" style="background:#00E5FF" aria-pressed="false" aria-label="Cyan"></button>
+              <button class="swatch" style="background:#7C4DFF" aria-pressed="false" aria-label="Violet"></button>
+              <button class="swatch" style="background:#00FFA3" aria-pressed="false" aria-label="Green"></button>
+              <button class="swatch" style="background:#FFD400" aria-pressed="false" aria-label="Yellow"></button>
+            </div>
+            <p class="hint">Resolved from the layer's own seed. Change the scheme and this re-resolves; pin it and it survives.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- MOTION: the whole point of the simple-surface design ---- -->
+      <div class="section">
+        <div class="section__title">Motion</div>
+        <p class="motion-help">
+          Pick how this layer should feel. Every moving value on it gets an oscillation
+          curve chosen to match.
+        </p>
+        <div class="chips" role="group" aria-label="Motion character" style="margin-bottom:var(--s3)">
+          <button class="chip" aria-pressed="false">Calm</button>
+          <button class="chip" aria-pressed="false">Breathing</button>
+          <button class="chip" aria-pressed="true">Pulse</button>
+          <button class="chip" aria-pressed="false">Tidal</button>
+          <button class="chip" aria-pressed="false">Heartbeat</button>
+          <button class="chip" aria-pressed="false">Chaotic</button>
+        </div>
+
+        <div class="param" style="border-bottom:0;padding-top:0">
+          <div class="param__head">
+            <span class="param__name">Speed</span>
+            <span class="param__now">×1.50</span>
+          </div>
+          <div class="track">
+            <div class="track__rail"></div>
+            <div class="track__band" style="left:0;width:45%"></div>
+            <div class="track__thumb" style="left:45%"></div>
+          </div>
+          <div class="track__bounds"><span>×0.25</span><span>×3.00</span></div>
+        </div>
+
+        <button class="btn" style="width:100%">
+          <span class="btn__glyph" aria-hidden="true">⟳</span> Reroll motion
+        </button>
+      </div>
+
+      <!-- ---- PARAMETERS ---- -->
+      <div class="section">
+        <div class="section__title">
+          Parameters
+          <span class="muted small" style="text-transform:none;letter-spacing:0">↕ = animated</span>
+        </div>
+
+        <!-- STATIC param: single value, stepper -->
+        <div class="param">
+          <div class="param__head">
+            <span class="param__name">Ray count <span class="param__badge">Fixed</span></span>
+          </div>
+          <div class="between">
+            <div class="stepper">
+              <button class="btn btn--icon" aria-label="Decrease ray count">−</button>
+              <span class="stepper__val">24</span>
+              <button class="btn btn--icon" aria-label="Increase ray count">＋</button>
+            </div>
+            <span class="mono small muted">3 – 64</span>
+          </div>
+        </div>
+
+        <!-- ANIMATABLE param, Advanced CLOSED -->
+        <div class="param">
+          <div class="param__head">
+            <span class="param__name">Inner radius <span class="param__badge param__badge--anim">↕ Animated</span></span>
+            <span class="param__now">now 186</span>
+          </div>
+          <!-- Two thumbs set the min/max the value travels between.
+               The glowing tick is the value the engine is resolving this frame. -->
+          <div class="track">
+            <div class="track__rail"></div>
+            <div class="track__band" style="left:12%;width:44%"></div>
+            <div class="track__thumb" style="left:12%" role="slider" aria-label="Inner radius minimum" tabindex="0"></div>
+            <div class="track__thumb" style="left:56%" role="slider" aria-label="Inner radius maximum" tabindex="0"></div>
+            <div class="track__now" style="left:46.5%"></div>
+          </div>
+          <div class="track__bounds"><span>0</span><span>min 48 — max 224</span><span>400</span></div>
+
+          <div class="disclosure">
+            <button class="disclosure__toggle" aria-expanded="false">
+              <span>Advanced</span><span class="caret" aria-hidden="true">›</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ANIMATABLE param, Advanced OPEN -->
+        <div class="param">
+          <div class="param__head">
+            <span class="param__name">Length <span class="param__badge param__badge--anim">↕ Animated</span></span>
+            <span class="param__now">now 612</span>
+          </div>
+          <div class="track">
+            <div class="track__rail"></div>
+            <div class="track__band" style="left:16%;width:53%"></div>
+            <div class="track__thumb" style="left:16%" role="slider" aria-label="Length minimum" tabindex="0"></div>
+            <div class="track__thumb" style="left:69%" role="slider" aria-label="Length maximum" tabindex="0"></div>
+            <div class="track__now" style="left:60%"></div>
+          </div>
+          <div class="track__bounds"><span>40</span><span>min 178 — max 634</span><span>900</span></div>
+
+          <div class="disclosure">
+            <button class="disclosure__toggle" aria-expanded="true">
+              <span>Advanced</span><span class="caret" aria-hidden="true">›</span>
+            </button>
+            <div class="disclosure__panel">
+              <div class="param__adv">
+                <label class="label" for="p-min">Min</label>
+                <input class="input input--mono" id="p-min" value="178">
+
+                <label class="label" for="p-max">Max</label>
+                <input class="input input--mono" id="p-max" value="634">
+
+                <label class="label" for="p-times">Cycles</label>
+                <div class="stepper">
+                  <button class="btn btn--icon" aria-label="Fewer cycles">−</button>
+                  <span class="stepper__val">3</span>
+                  <button class="btn btn--icon" aria-label="More cycles">＋</button>
+                  <span class="small muted">per loop (1–8)</span>
+                </div>
+
+                <label class="label" for="p-alg">Curve</label>
+                <select class="select" id="p-alg">
+                  <optgroup label="In “Pulse”">
+                    <option selected>pulseWave</option><option>doublePeak</option>
+                    <option>ripple</option><option>spiralOut</option>
+                  </optgroup>
+                  <optgroup label="All 20 curves">
+                    <option>journeySin</option><option>journeySinSquared</option>
+                    <option>journeyExpEnvelope</option><option>journeySteepBell</option>
+                    <option>journeyFlatTop</option><option>invertedBell</option>
+                    <option>exponentialDecay</option><option>elasticBounce</option>
+                    <option>breathing</option><option>heartbeat</option>
+                    <option>waveCrash</option><option>volcanic</option>
+                    <option>spiralIn</option><option>mountainRange</option>
+                    <option>oceanTide</option><option>butterfly</option>
+                  </optgroup>
+                </select>
+              </div>
+              <p class="hint">Hand-set values stick through Reroll motion, but change the character above and they're replaced.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ANIMATABLE: opacity, common to every layer -->
+        <div class="param">
+          <div class="param__head">
+            <span class="param__name">Opacity <span class="param__badge param__badge--anim">↕ Animated</span></span>
+            <span class="param__now">now 0.85</span>
+          </div>
+          <div class="track">
+            <div class="track__rail"></div>
+            <div class="track__band" style="left:58%;width:32%"></div>
+            <div class="track__thumb" style="left:58%" role="slider" aria-label="Opacity minimum" tabindex="0"></div>
+            <div class="track__thumb" style="left:90%" role="slider" aria-label="Opacity maximum" tabindex="0"></div>
+            <div class="track__now" style="left:83%"></div>
+          </div>
+          <div class="track__bounds"><span>0.05</span><span>min 0.60 — max 0.90</span><span>1.00</span></div>
+        </div>
+
+        <!-- BOOLEAN static -->
+        <div class="param">
+          <button class="switch" role="switch" aria-checked="true">
+            <span class="param__name">Taper <span class="param__badge">Fixed</span></span>
+            <span class="switch__track"></span>
+          </button>
+          <p class="hint" style="margin-top:0">Rays narrow toward their outer end.</p>
+        </div>
+
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="mocknote">
+  <b>layer-editor.html</b> — FR-6, FR-10, FR-11. The central design problem: an animatable parameter is four
+  values (min, max, cycles, curve), and there are hundreds of them. Solution — a <b>dual-thumb band on the
+  parameter's hard bounds</b> plus a <b>live cyan tick showing the value the engine is resolving right now</b>.
+  The tick moves as you watch, so the abstract four-value model becomes something you can see. Cycles and curve
+  hide behind per-parameter Advanced, collapsed by default. Above all of it, six Motion characters set every
+  curve on the layer at once — that's the simple surface. Bounds are printed under every track, so a control
+  can never be driven somewhere ugly.
+</div>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colour schemes — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .scheme {
+    display: block; width: 100%; text-align: left; cursor: pointer;
+    background: var(--ink-800); border: 1px solid var(--line);
+    border-radius: var(--r-md); padding: var(--s3); margin-bottom: var(--s2);
+  }
+  .scheme:hover { background: var(--ink-700); }
+  .scheme[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .scheme__top { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2); }
+  .scheme__name { font-weight: 700; flex: 1 1 auto; }
+  .scheme__tick { color: var(--accent); font-weight: 700; }
+  .bucket-row { margin-bottom: var(--s4); }
+  .bucket-row .between { margin-bottom: var(--s2); }
+  .tabs { display: flex; gap: var(--s2); border-bottom: 1px solid var(--line); margin-bottom: var(--s4); }
+  .tab {
+    background: none; border: 0; border-bottom: 2px solid transparent;
+    padding: var(--s3) var(--s2); min-height: var(--tap);
+    color: var(--text-dim); font-weight: 700; font-size: var(--f-sm); cursor: pointer;
+  }
+  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sc-title">
+    <div class="between" style="margin-bottom:var(--s4)">
+      <h1 class="modal__title" id="sc-title" style="margin:0">Colour schemes</h1>
+      <button class="btn btn--icon" aria-label="Close">✕</button>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true">Choose</button>
+      <button class="tab" role="tab" aria-selected="false">Edit “Rust Bloom”</button>
+    </div>
+
+    <!-- ---- CHOOSE ---- -->
+    <div role="tabpanel">
+      <div class="section__title">Built in</div>
+
+      <button class="scheme" aria-pressed="true">
+        <div class="scheme__top">
+          <span class="scheme__name">Neon Night</span>
+          <span class="scheme__tick" aria-hidden="true">✓</span>
+          <span class="sr-only">Currently selected</span>
+        </div>
+        <div class="scheme-strip" aria-hidden="true">
+          <i style="background:#FF2E88"></i><i style="background:#00E5FF"></i><i style="background:#7C4DFF"></i>
+          <i style="background:#00FFA3"></i><i style="background:#FFD400"></i><i style="background:#FFFFFF"></i>
+          <i style="background:#B0B6C0"></i><i style="background:#2A2E37"></i><i style="background:#07060D"></i><i style="background:#120B1F"></i>
+        </div>
+      </button>
+
+      <button class="scheme" aria-pressed="false">
+        <div class="scheme__top"><span class="scheme__name">Solar Flare</span></div>
+        <div class="scheme-strip" aria-hidden="true">
+          <i style="background:#FF6B00"></i><i style="background:#FFB300"></i><i style="background:#E4002B"></i>
+          <i style="background:#FFE066"></i><i style="background:#FF3D57"></i><i style="background:#F5EFE0"></i>
+          <i style="background:#8A7F6B"></i><i style="background:#241C12"></i><i style="background:#120A05"></i><i style="background:#1E0D06"></i>
+        </div>
+      </button>
+
+      <button class="scheme" aria-pressed="false">
+        <div class="scheme__top"><span class="scheme__name">Deep Sea</span></div>
+        <div class="scheme-strip" aria-hidden="true">
+          <i style="background:#00C2A8"></i><i style="background:#2E7DFF"></i><i style="background:#5EEAD4"></i>
+          <i style="background:#0E7490"></i><i style="background:#A5F3FC"></i><i style="background:#E8F1F5"></i>
+          <i style="background:#64748B"></i><i style="background:#111C26"></i><i style="background:#03080E"></i><i style="background:#061826"></i>
+        </div>
+      </button>
+
+      <button class="scheme" aria-pressed="false">
+        <div class="scheme__top"><span class="scheme__name">Bone &amp; Ink</span></div>
+        <div class="scheme-strip" aria-hidden="true">
+          <i style="background:#C0492B"></i><i style="background:#8C6A3F"></i><i style="background:#3F5E5A"></i>
+          <i style="background:#A8452C"></i><i style="background:#EDE6D8"></i><i style="background:#9A9287"></i>
+          <i style="background:#3A3733"></i><i style="background:#141312"></i><i style="background:#0E0D0C"></i><i style="background:#EDE6D8"></i>
+        </div>
+      </button>
+
+      <div class="section__title" style="margin-top:var(--s5)">Yours</div>
+      <button class="scheme" aria-pressed="false">
+        <div class="scheme__top">
+          <span class="scheme__name">Rust Bloom</span>
+          <span class="btn btn--sm btn--ghost">Edit</span>
+        </div>
+        <div class="scheme-strip" aria-hidden="true">
+          <i style="background:#D94F30"></i><i style="background:#F2A65A"></i><i style="background:#5C946E"></i>
+          <i style="background:#F4EFE6"></i><i style="background:#7A736B"></i><i style="background:#100E0C"></i>
+        </div>
+      </button>
+
+      <button class="btn" style="width:100%;margin-top:var(--s3)">＋ New scheme</button>
+    </div>
+
+    <!-- ---- EDIT (shown here open for reference) ---- -->
+    <div style="margin-top:var(--s6);padding-top:var(--s5);border-top:1px solid var(--line)">
+      <div class="section__title">Editing “Rust Bloom”</div>
+
+      <div class="field">
+        <label class="label" for="sname">Name</label>
+        <input class="input" id="sname" value="Rust Bloom">
+      </div>
+
+      <div class="bucket-row">
+        <div class="between">
+          <span class="label" style="margin:0">Colour <span style="text-transform:none;letter-spacing:0">— the vivid ones</span></span>
+          <span class="small muted mono">3 / 8</span>
+        </div>
+        <div class="swatches">
+          <button class="swatch" style="background:#D94F30" aria-label="Edit rust orange"><span class="swatch__x" aria-hidden="true">✕</span></button>
+          <button class="swatch" style="background:#F2A65A" aria-label="Edit amber"><span class="swatch__x" aria-hidden="true">✕</span></button>
+          <button class="swatch" style="background:#5C946E" aria-label="Edit sage"><span class="swatch__x" aria-hidden="true">✕</span></button>
+          <button class="swatch swatch--add" aria-label="Add a colour">＋</button>
+        </div>
+      </div>
+
+      <div class="bucket-row">
+        <div class="between">
+          <span class="label" style="margin:0">Neutral <span style="text-transform:none;letter-spacing:0">— blacks, whites, greys</span></span>
+          <span class="small muted mono">2 / 8</span>
+        </div>
+        <div class="swatches">
+          <button class="swatch" style="background:#F4EFE6" aria-label="Edit bone"><span class="swatch__x" aria-hidden="true">✕</span></button>
+          <button class="swatch" style="background:#7A736B" aria-label="Edit stone"><span class="swatch__x" aria-hidden="true">✕</span></button>
+          <button class="swatch swatch--add" aria-label="Add a neutral">＋</button>
+        </div>
+      </div>
+
+      <div class="bucket-row">
+        <div class="between">
+          <span class="label" style="margin:0">Background</span>
+          <span class="small muted mono">1 / 8</span>
+        </div>
+        <div class="swatches">
+          <button class="swatch" style="background:#100E0C" aria-label="Edit near black"></button>
+          <button class="swatch swatch--add" aria-label="Add a background">＋</button>
+        </div>
+        <!-- Last colour in a bucket has no remove control at all — the rule is
+             enforced by absence, not by an error message after the fact. -->
+        <p class="hint">Every bucket needs at least one colour, so the last one can't be removed.</p>
+      </div>
+
+      <div class="banner">
+        <span class="banner__icon" aria-hidden="true">↗</span>
+        <div class="banner__body">
+          Your schemes travel <strong>inside the seed</strong>. Share a loop that uses this
+          and your friend sees these exact colours, even though they've never had this scheme.
+        </div>
+      </div>
+
+      <div class="row-2" style="margin-top:var(--s4)">
+        <button class="btn btn--danger">Delete</button>
+        <button class="btn btn--primary">Save scheme</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="mocknote" style="position:fixed;bottom:0;left:0;right:0;z-index:60">
+  <b>schemes.html</b> — FR-7, FR-8. Buckets are labelled in plain English (“the vivid ones”, “blacks, whites,
+  greys”) rather than as jargon. The 1–8 rule is enforced structurally: the add button disappears at 8, and the
+  final swatch in a bucket simply has no ✕. A recipient opening a seed with an embedded custom scheme sees an
+  explicit “Save this scheme” offer (share.html) — it is never added to their library silently.
+</div>
+</body>
+</html>

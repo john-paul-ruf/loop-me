@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gallery — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .entry {
+    display: flex; align-items: flex-start; gap: var(--s3);
+    padding: var(--s3);
+    background: var(--ink-800); border: 1px solid var(--line);
+    border-radius: var(--r-md); margin-bottom: var(--s2);
+  }
+  .entry__main { flex: 1 1 auto; min-width: 0; }
+  .entry__title { font-weight: 600; margin-bottom: 2px; }
+  .entry__title--none { color: var(--text-faint); font-family: var(--mono); font-size: var(--f-sm); }
+  .entry__meta { font-size: var(--f-sm); color: var(--text-dim); display: flex; gap: var(--s2); flex-wrap: wrap; }
+  .entry__meta .dur {
+    font-family: var(--mono); background: var(--ink-700);
+    padding: 0 6px; border-radius: var(--r-sm); color: var(--text);
+  }
+  .entry__acts { display: flex; gap: var(--s1); flex: 0 0 auto; }
+  .entry__acts .btn { min-height: 38px; width: 38px; padding: 0; }
+  .search { margin-bottom: var(--s4); }
+</style>
+</head>
+<body>
+<div class="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="g-title" style="width:min(600px,100%)">
+    <div class="between" style="margin-bottom:var(--s4)">
+      <h1 class="modal__title" id="g-title" style="margin:0">Gallery</h1>
+      <button class="btn btn--icon" aria-label="Close">✕</button>
+    </div>
+
+    <div class="search">
+      <input class="input" type="search" placeholder="Search your descriptions">
+    </div>
+
+    <div class="between" style="margin-bottom:var(--s3)">
+      <span class="small muted">37 saved · newest first</span>
+      <div style="display:flex;gap:var(--s2)">
+        <button class="btn btn--sm">Export</button>
+        <button class="btn btn--sm">Import</button>
+      </div>
+    </div>
+
+    <ul>
+      <li class="entry">
+        <div class="entry__main">
+          <div class="entry__title">slow rust spiral, good one</div>
+          <div class="entry__meta"><span class="dur">15s</span> <span>Today, 21:04</span> <span>· custom scheme</span></div>
+        </div>
+        <div class="entry__acts">
+          <button class="btn btn--primary" style="width:auto;padding:0 var(--s3)">Load</button>
+          <button class="btn" aria-label="Copy link for “slow rust spiral”">⧉</button>
+          <button class="btn" aria-label="Edit description of “slow rust spiral”">✎</button>
+          <button class="btn" aria-label="Delete “slow rust spiral”">🗑</button>
+        </div>
+      </li>
+
+      <li class="entry">
+        <div class="entry__main">
+          <div class="entry__title">that one that looks like a jellyfish</div>
+          <div class="entry__meta"><span class="dur">30s</span> <span>Yesterday, 23:41</span></div>
+        </div>
+        <div class="entry__acts">
+          <button class="btn btn--primary" style="width:auto;padding:0 var(--s3)">Load</button>
+          <button class="btn" aria-label="Copy link">⧉</button>
+          <button class="btn" aria-label="Edit description">✎</button>
+          <button class="btn" aria-label="Delete">🗑</button>
+        </div>
+      </li>
+
+      <!-- No description: fall back to a truncated seed so the row is never empty. -->
+      <li class="entry">
+        <div class="entry__main">
+          <div class="entry__title entry__title--none">1zQ2hlbWVOZW9uTmlnaHQtNC1s…</div>
+          <div class="entry__meta"><span class="dur">5s</span> <span>28 Jul, 02:17</span></div>
+        </div>
+        <div class="entry__acts">
+          <button class="btn btn--primary" style="width:auto;padding:0 var(--s3)">Load</button>
+          <button class="btn" aria-label="Copy link">⧉</button>
+          <button class="btn" aria-label="Add a description">✎</button>
+          <button class="btn" aria-label="Delete">🗑</button>
+        </div>
+      </li>
+
+      <!-- Delete confirmation is inline, not a stacked dialog. -->
+      <li class="entry" style="border-color:var(--danger);background:var(--danger-soft);flex-direction:column;align-items:stretch">
+        <div class="between" style="width:100%">
+          <div class="entry__main">
+            <div class="entry__title">heartbeat test — too fast?</div>
+            <div class="entry__meta"><span class="dur">5s</span> <span>27 Jul, 19:02</span></div>
+          </div>
+        </div>
+        <div class="between" style="margin-top:var(--s3);width:100%">
+          <span class="small" style="color:#FFB3BE">Delete this? The seed is gone unless you copied it.</span>
+          <div style="display:flex;gap:var(--s2)">
+            <button class="btn btn--sm">Keep</button>
+            <button class="btn btn--sm btn--danger">Delete</button>
+          </div>
+        </div>
+      </li>
+
+      <li class="entry">
+        <div class="entry__main">
+          <div class="entry__title">moiré + scan lines, very tv</div>
+          <div class="entry__meta"><span class="dur">15s</span> <span>26 Jul, 11:55</span></div>
+        </div>
+        <div class="entry__acts">
+          <button class="btn btn--primary" style="width:auto;padding:0 var(--s3)">Load</button>
+          <button class="btn" aria-label="Copy link">⧉</button>
+          <button class="btn" aria-label="Edit description">✎</button>
+          <button class="btn" aria-label="Delete">🗑</button>
+        </div>
+      </li>
+    </ul>
+
+    <p class="hint" style="text-align:center;margin-top:var(--s4)">
+      Saved on this device only. Export writes a JSON file you can carry to another one.
+    </p>
+  </div>
+</div>
+
+<div class="mocknote" style="position:fixed;bottom:0;left:0;right:0;z-index:60">
+  <b>gallery.html</b> — FR-14. Text-only by design; no thumbnails. Rows render from stored fields alone, so
+  200+ entries list instantly — nothing decodes a seed until Load is pressed. An entry with no description
+  shows a truncated seed rather than blank space. Delete confirms inline and names the consequence.
+  Empty state (not shown): “Nothing saved yet — hit ♥ on something you like.”
+</div>
+</body>
+</html>

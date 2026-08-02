@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Main view — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ STAGE ============ -->
+  <main class="stage">
+    <div class="stagebar">
+      <span class="stagebar__brand">loop-me</span>
+      <span class="stagebar__spacer"></span>
+      <button class="btn btn--icon btn--sm" aria-label="Pause"><span class="btn__glyph" aria-hidden="true">⏸</span></button>
+      <button class="btn btn--icon btn--sm" aria-label="Hide all controls (view only)"><span class="btn__glyph" aria-hidden="true">⤢</span></button>
+      <button class="btn btn--icon btn--sm" aria-label="Menu"><span class="btn__glyph" aria-hidden="true">☰</span></button>
+    </div>
+
+    <!-- 1080x1920 render target, scaled to fit. Letterbox around it is
+         painted with the active scheme's background colour. -->
+    <div class="canvas-frame">
+      <div class="art" role="img" aria-label="Generative animation: four layers — radiating rays, concentric rings, a soft flare and film grain — on a dark violet background.">
+        <i class="art-rays"></i>
+        <i class="art-rings"></i>
+        <i class="art-flare"></i>
+        <i class="art-vignette"></i>
+        <i class="art-grain"></i>
+      </div>
+    </div>
+
+    <div class="stage-status">
+      <span style="color:var(--ok)">●</span>
+      <span>60 fps</span>
+      <span style="color:var(--line-strong)">|</span>
+      <span>04.2s / 15s</span>
+      <span style="color:var(--line-strong)">|</span>
+      <span>4 layers</span>
+    </div>
+  </main>
+
+  <!-- ============ DOCK ============ -->
+  <aside class="dock" aria-label="Composition controls">
+    <button class="dock__grabber" aria-label="Expand controls" aria-expanded="true"></button>
+
+    <!-- Persistent. Randomize is one tap from anywhere. -->
+    <div class="actionbar">
+      <button class="btn btn--primary"><span class="btn__glyph" aria-hidden="true">⚄</span> Randomize</button>
+      <button class="btn btn--icon" aria-label="Share"><span class="btn__glyph" aria-hidden="true">↗</span></button>
+      <button class="btn btn--icon" aria-label="Save to gallery"><span class="btn__glyph" aria-hidden="true">♥</span></button>
+      <button class="btn btn--icon" aria-label="Undo last change"><span class="btn__glyph" aria-hidden="true">↺</span></button>
+    </div>
+
+    <div class="dock__scroll">
+
+      <!-- ---- Duration ---- -->
+      <div class="section">
+        <div class="section__title">Loop duration</div>
+        <div class="seg" role="group" aria-label="Loop duration">
+          <button aria-pressed="false">5s</button>
+          <button aria-pressed="true">15s</button>
+          <button aria-pressed="false">30s</button>
+        </div>
+      </div>
+
+      <!-- ---- Scheme ---- -->
+      <div class="section">
+        <div class="section__title">
+          Colour scheme
+          <button class="btn btn--ghost btn--sm">Edit schemes</button>
+        </div>
+        <button class="card" style="width:100%;text-align:left;cursor:pointer">
+          <div class="between" style="margin-bottom:var(--s2)">
+            <strong>Neon Night</strong>
+            <span class="small muted">Change ›</span>
+          </div>
+          <div class="scheme-strip" aria-hidden="true">
+            <i style="background:#FF2E88"></i><i style="background:#00E5FF"></i>
+            <i style="background:#7C4DFF"></i><i style="background:#00FFA3"></i>
+            <i style="background:#FFD400"></i><i style="background:#FFFFFF"></i>
+            <i style="background:#B0B6C0"></i><i style="background:#2A2E37"></i>
+            <i style="background:#07060D"></i><i style="background:#120B1F"></i>
+          </div>
+          <div class="small muted" style="margin-top:var(--s2)">5 colour · 3 neutral · 2 background</div>
+        </button>
+      </div>
+
+      <!-- ---- Layers ---- -->
+      <div class="section">
+        <div class="section__title">
+          Layers <span class="muted">4 of 5</span>
+        </div>
+
+        <!-- Order is top-of-list = top-of-stack, matching what you see. -->
+        <ul>
+          <li class="layer">
+            <button class="layer__grip" aria-label="Reorder Grain"><span aria-hidden="true">⠿</span></button>
+            <button class="layer__body">
+              <span class="layer__name"><span class="role-dot role-dot--overlay"></span> Grain</span>
+              <span class="layer__meta">Overlay · Overlay blend · 18% · Calm</span>
+            </button>
+            <div class="layer__order">
+              <button class="btn" aria-label="Move Grain up" disabled>▲</button>
+              <button class="btn" aria-label="Move Grain down">▼</button>
+            </div>
+          </li>
+
+          <li class="layer">
+            <button class="layer__grip" aria-label="Reorder Fuzz Flare"><span aria-hidden="true">⠿</span></button>
+            <button class="layer__body">
+              <span class="layer__name"><span class="role-dot role-dot--overlay"></span> Fuzz Flare</span>
+              <span class="layer__meta">Overlay · Additive blend · 72% · Breathing</span>
+            </button>
+            <div class="layer__order">
+              <button class="btn" aria-label="Move Fuzz Flare up">▲</button>
+              <button class="btn" aria-label="Move Fuzz Flare down">▼</button>
+            </div>
+          </li>
+
+          <li class="layer" style="border-color:var(--accent);background:var(--accent-soft)">
+            <button class="layer__grip" aria-label="Reorder Nth Rings"><span aria-hidden="true">⠿</span></button>
+            <button class="layer__body">
+              <span class="layer__name"><span class="role-dot role-dot--primary"></span> Nth Rings</span>
+              <span class="layer__meta">Primary · Screen blend · 60% · Tidal</span>
+            </button>
+            <div class="layer__order">
+              <button class="btn" aria-label="Move Nth Rings up">▲</button>
+              <button class="btn" aria-label="Move Nth Rings down">▼</button>
+            </div>
+          </li>
+
+          <li class="layer">
+            <button class="layer__grip" aria-label="Reorder Ray Rings"><span aria-hidden="true">⠿</span></button>
+            <button class="layer__body">
+              <span class="layer__name"><span class="role-dot role-dot--primary"></span> Ray Rings</span>
+              <span class="layer__meta">Primary · Normal blend · 85% · Pulse</span>
+            </button>
+            <div class="layer__order">
+              <button class="btn" aria-label="Move Ray Rings up">▲</button>
+              <button class="btn" aria-label="Move Ray Rings down" disabled>▼</button>
+            </div>
+          </li>
+        </ul>
+
+        <button class="btn" style="width:100%;margin-top:var(--s2)">
+          <span class="btn__glyph" aria-hidden="true">＋</span> Add layer
+        </button>
+      </div>
+
+      <!-- ---- Seed ---- -->
+      <div class="section">
+        <div class="section__title">Seed</div>
+        <div class="seedbox">
+          <input class="input input--mono" readonly value="1zQ2hlbWVOZW9uTmlnaHQtNC1sYXllci1jb21wb3NpdGlvbi1zZWVkLXN0cmluZw">
+          <button class="btn btn--icon" aria-label="Copy seed"><span class="btn__glyph" aria-hidden="true">⧉</span></button>
+        </div>
+        <div class="seed-meter">
+          <div class="seed-meter__bar"><div class="seed-meter__fill" style="width:23%"></div></div>
+          <span class="mono">912 / 4000</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="row-2">
+          <button class="btn">Gallery</button>
+          <button class="btn">Paste seed</button>
+        </div>
+        <button class="btn btn--ghost" style="width:100%;margin-top:var(--s2)">Show welcome screen</button>
+      </div>
+
+    </div>
+  </aside>
+</div>
+
+<div class="mocknote">
+  <b>main.html</b> — FR-16 default view. One DOM, two layouts: bottom sheet under 960&nbsp;px, right rail above it
+  (resize this window to see the switch). Randomize sits in a persistent action bar that never scrolls away.
+  Progressive depth: composition-level controls here → tap a layer row for per-layer controls → Advanced inside that.
+  Layer list is stack order, top row = top layer. Reordering works by drag <em>and</em> by ▲▼ buttons, so it is
+  keyboard- and screen-reader-operable — no hover-only affordances anywhere.
+</div>
+</body>
+</html>

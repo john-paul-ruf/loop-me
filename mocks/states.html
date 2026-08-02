@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>States &amp; edge cases — loop-me Mock</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .wrap { max-width: 560px; margin: 0 auto; padding: var(--s5) var(--s4) var(--s8); }
+  .case { margin-bottom: var(--s7); }
+  .case__h {
+    font-size: var(--f-xs); font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--cyan); margin-bottom: var(--s2);
+  }
+  .case__d { font-size: var(--f-sm); color: var(--text-dim); margin-bottom: var(--s3); }
+  .frame { background: var(--ink-900); border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s4); }
+  h1 { font-size: var(--f-xl); margin-bottom: var(--s2); }
+  .lede { color: var(--text-dim); margin-bottom: var(--s6); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>States &amp; edge cases</h1>
+  <p class="lede">Every non-happy path in one place. None of these is a dead end — the app always
+  ends up with something on screen and something to press.</p>
+
+  <!-- ===== FR-15 governor ===== -->
+  <div class="case">
+    <div class="case__h">FR-15 · Performance governor, warning active</div>
+    <p class="case__d">Median frame interval over 20 ms across two 90-frame windows. The art is
+    never altered — only the controls change.</p>
+    <div class="frame">
+      <div class="banner banner--warn">
+        <span class="banner__icon" aria-hidden="true">▲</span>
+        <div class="banner__body">
+          <div class="banner__title">This one's heavy for your device</div>
+          It's running at about 42 fps. The art still looks exactly as it should —
+          it's just not as smooth here. Try removing a layer.
+        </div>
+        <button class="btn btn--icon btn--sm" aria-label="Dismiss">✕</button>
+      </div>
+
+      <button class="btn" style="width:100%" disabled aria-describedby="why-blocked">
+        <span class="btn__glyph" aria-hidden="true">＋</span> Add layer
+      </button>
+      <!-- Reason is visible text, not a hover tooltip. -->
+      <p class="hint--block" id="why-blocked">
+        <span aria-hidden="true">▲</span>
+        Paused while your device is struggling. Remove a layer and this comes back.
+      </p>
+
+      <div class="stage-status" style="position:static;transform:none;display:inline-flex;margin-top:var(--s3)">
+        <span style="color:var(--warn)">●</span><span>42 fps</span>
+        <span style="color:var(--line-strong)">|</span><span>5 layers</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FR-17 reduced motion ===== -->
+  <div class="case">
+    <div class="case__h">FR-17 · Reduced motion — entered paused</div>
+    <p class="case__d">A still first frame with an unmissable Play. The user opts in; nothing moves first.</p>
+    <div class="frame" style="padding:0;overflow:hidden;position:relative;height:280px">
+      <div class="art" style="position:absolute;inset:0">
+        <i class="art-rays"></i><i class="art-rings"></i><i class="art-vignette"></i><i class="art-grain"></i>
+      </div>
+      <div style="position:absolute;inset:0;display:grid;place-items:center;background:rgba(7,6,11,.72)">
+        <div style="text-align:center">
+          <button class="btn btn--primary" style="min-height:56px;padding:0 var(--s5);font-size:var(--f-lg)">
+            <span class="btn__glyph" aria-hidden="true">▶</span> Play
+          </button>
+          <p class="hint" style="max-width:280px;margin:var(--s3) auto 0">
+            Paused because your device asks for reduced motion.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FR-18 bad seed ===== -->
+  <div class="case">
+    <div class="case__h">FR-18 · Broken seed</div>
+    <p class="case__d">Plain language, no codec vocabulary. A working randomized loop is already
+    playing behind this — never a blank canvas.</p>
+    <div class="frame">
+      <div class="banner banner--error">
+        <span class="banner__icon" aria-hidden="true">✕</span>
+        <div class="banner__body">
+          <div class="banner__title">That link didn't survive the trip</div>
+          The seed looks cut off — some apps shorten long links. Ask for it again,
+          or paste the seed on its own. Here's a fresh random one in the meantime.
+        </div>
+        <button class="btn btn--icon btn--sm" aria-label="Dismiss">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="case">
+    <div class="case__h">FR-18 · Seed from a newer version</div>
+    <div class="frame">
+      <div class="banner banner--error">
+        <span class="banner__icon" aria-hidden="true">✕</span>
+        <div class="banner__body">
+          <div class="banner__title">This loop needs a newer loop-me</div>
+          It was made with version 2 and this page is version 1. Reload the page to
+          pick up the latest, then try again.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="case">
+    <div class="case__h">FR-18 · Unknown layer type — partial recovery</div>
+    <p class="case__d">One bad layer is skipped; the rest of the composition still plays.</p>
+    <div class="frame">
+      <div class="banner banner--warn">
+        <span class="banner__icon" aria-hidden="true">▲</span>
+        <div class="banner__body">
+          <div class="banner__title">One layer was made with an effect this page doesn't have</div>
+          Everything else is playing normally. It'll look slightly different from
+          what the sender saw.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FR-18 storage ===== -->
+  <div class="case">
+    <div class="case__h">FR-18 · Local storage unavailable</div>
+    <p class="case__d">Save degrades; everything else keeps working. The splash also reverts to
+    showing on every load — failing toward the warning.</p>
+    <div class="frame">
+      <button class="btn" style="width:100%" disabled aria-describedby="why-nosave">
+        <span class="btn__glyph" aria-hidden="true">♥</span> Save to gallery
+      </button>
+      <p class="hint--block" id="why-nosave">
+        <span aria-hidden="true">▲</span>
+        Your browser isn't letting this page store anything — private browsing, usually.
+        Copy the link instead; it holds the whole loop by itself.
+      </p>
+    </div>
+  </div>
+
+  <div class="case">
+    <div class="case__h">FR-14 · Storage full</div>
+    <div class="frame">
+      <div class="banner banner--warn">
+        <span class="banner__icon" aria-hidden="true">▲</span>
+        <div class="banner__body">
+          <div class="banner__title">No room left to save</div>
+          Your gallery has hit this browser's storage limit. Export it as a backup,
+          then delete a few to make room.
+        </div>
+      </div>
+      <div class="row-2" style="margin-top:var(--s3)">
+        <button class="btn">Export gallery</button>
+        <button class="btn">Manage saved</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FR-12 long seed ===== -->
+  <div class="case">
+    <div class="case__h">FR-12 · Seed approaching the 4,000-character ceiling</div>
+    <div class="frame">
+      <div class="seed-meter">
+        <div class="seed-meter__bar"><div class="seed-meter__fill" style="width:88%;background:var(--warn)"></div></div>
+        <span class="mono" style="color:var(--warn)">3,520 / 4000</span>
+      </div>
+      <p class="hint--block">
+        <span aria-hidden="true">▲</span>
+        This link is very long. Some chat apps cut links this size — send the seed
+        on its own if it doesn't open for them.
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== Clipboard fallback ===== -->
+  <div class="case">
+    <div class="case__h">FR-13 · Clipboard API unavailable</div>
+    <div class="frame">
+      <div class="field" style="margin:0">
+        <label class="label" for="fb">Link — selected and ready</label>
+        <input class="input input--mono" id="fb" readonly
+               value="https://johnruf.github.io/loop-me/#s=1zQ2hlbWVOZW9u…"
+               style="border-color:var(--cyan)">
+        <p class="hint">Copying isn't available here, so we've selected it for you — press ⌘C / Ctrl+C.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Toasts ===== -->
+  <div class="case">
+    <div class="case__h">Confirmations</div>
+    <p class="case__d">Each also fires an aria-live announcement, so state is never conveyed by
+    visual toast alone.</p>
+    <div class="frame" style="display:flex;flex-wrap:wrap;gap:var(--s2)">
+      <span class="toast"><span class="toast__tick" aria-hidden="true">✓</span> Link copied</span>
+      <span class="toast"><span class="toast__tick" aria-hidden="true">✓</span> Saved to gallery</span>
+      <span class="toast"><span class="toast__tick" aria-hidden="true">✓</span> Scheme saved</span>
+      <span class="toast"><span aria-hidden="true">↺</span> Change undone</span>
+    </div>
+  </div>
+
+  <!-- ===== Recipient scheme offer ===== -->
+  <div class="case">
+    <div class="case__h">FR-8 · Recipient offered an embedded scheme</div>
+    <p class="case__d">Explicitly offered, never silently added to their library.</p>
+    <div class="frame">
+      <div class="banner">
+        <span class="banner__icon" aria-hidden="true">◈</span>
+        <div class="banner__body">
+          <div class="banner__title">This loop came with its own palette</div>
+          <div class="scheme-strip" style="margin:var(--s2) 0">
+            <i style="background:#D94F30"></i><i style="background:#F2A65A"></i><i style="background:#5C946E"></i>
+            <i style="background:#F4EFE6"></i><i style="background:#7A736B"></i><i style="background:#100E0C"></i>
+          </div>
+          “Rust Bloom” — keep it for your own loops?
+        </div>
+      </div>
+      <div class="row-2">
+        <button class="btn">No thanks</button>
+        <button class="btn btn--primary">Save this scheme</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="mocknote">
+  <b>states.html</b> — reference sheet, not a screen. Rules applied throughout: every message names what
+  happened and what to do next, in language with no codec or engine jargon in it; every disabled control
+  carries its reason as visible text rather than a hover tooltip; nothing here can leave a blank canvas.
+</div>
+</body>
+</html>

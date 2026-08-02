@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>loop-me tests</title>
+<link rel="stylesheet" href="../styles/_tokens.css">
+<link rel="stylesheet" href="harness.css">
+
+<!-- The harness must load first: suite modules import from it, and it
+     schedules the run on `load`, after every deferred module script has
+     executed. -->
+<script type="module" src="harness.js"></script>
+
+<!-- ============================================================
+     SUITES — one module script per file, in dependency order.
+     Adding a suite means adding exactly one line here.
+
+     B1 — types & contracts
+     ============================================================ -->
+<script type="module" src="params.test.js"></script>
+<script type="module" src="errors.test.js"></script>
+<script type="module" src="registry.test.js"></script>
+
+<!-- C1 — PRNG and the loop-safe value engine -->
+<script type="module" src="rng.test.js"></script>
+<script type="module" src="algorithms.test.js"></script>
+
+<!-- C2 — composition model, schemes, motion -->
+<script type="module" src="composition.test.js"></script>
+<script type="module" src="motion.test.js"></script>
+
+<!-- C3 — state, actions, clock -->
+<script type="module" src="clock.test.js"></script>
+
+<!-- C4 — storage layer -->
+<script type="module" src="store.test.js"></script>
+
+<!-- C5 — seed codec -->
+<script type="module" src="codec.test.js"></script>
+
+<!-- D1 — render pipeline + Ray Rings -->
+<script type="module" src="render.test.js"></script>
+
+<!-- D4 — the complete 16-type catalog sweep -->
+<script type="module" src="layers.test.js"></script>
+
+<!-- D5 — randomize taste rules and validity -->
+<script type="module" src="randomize.test.js"></script>
+
+<!-- F4 — accessibility contracts -->
+<script type="module" src="a11y.test.js"></script>
+
+<!-- fix-sidebar-clipping — dock sheet/rail stylesheet contracts -->
+<script type="module" src="layout.test.js"></script>
+
+<!-- stagebar-and-quick-delete — shell + panel interaction regressions -->
+<script type="module" src="shell.test.js"></script>
+<script type="module" src="panel.test.js"></script>
+
+</head>
+<body>
+<div class="testpage">
+  <h1>loop-me tests</h1>
+  <p class="lede">
+    Serve the repository root over HTTP — <span class="mono">python3 -m http.server</span> — and
+    open <span class="mono">/tests/</span>. There is no build step and no runner to install; this
+    page <em>is</em> the runner.
+  </p>
+
+  <div class="summary" id="summary">running…</div>
+  <div id="report"></div>
+</div>
+</body>
+</html>
