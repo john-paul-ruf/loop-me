@@ -97,6 +97,11 @@ function render() {
   const c = state.composition
   if (!c || !container) return
 
+  // #dock-scroll is the overflow scroller; tearing it down collapses its
+  // content height and clamps scrollTop to 0 (the "dock jump"). Save/restore
+  // around the rebuild. (F: governor-reorder-and-export SESSION-02.)
+  const savedScroll = container.scrollTop
+
   // Clear the container
   while (container.firstChild) container.removeChild(container.firstChild)
 
@@ -200,6 +205,10 @@ function render() {
     bottomGhost.style.setProperty('margin-top', 'var(--s2)')
   }
   container.appendChild(bottomSection)
+
+  // Restore the scroll position saved before the rebuild. (F:
+  // governor-reorder-and-export SESSION-02.)
+  container.scrollTop = savedScroll
 }
 
 // ---------------------------------------------------------------------------
@@ -255,6 +264,50 @@ function buildSchemeCard(c) {
 // ---------------------------------------------------------------------------
 
 /**
+ * After a reorder rebuilds the list, restore focus to the moved layer's
+ * arrow at its new index so repeated activations keep moving the same
+ * layer. The same-direction arrow is disabled at the boundary — fall back
+ * to the opposite arrow. (F: governor-reorder-and-export SESSION-02.)
+ *
+ * @param {number} index        The layer's index after the move.
+ * @param {'up' | 'down'} dir   The direction the user was pressing.
+ */
+function focusReorderButton(index, dir) {
+  if (!layerListEl) return
+  const primary = layerListEl.querySelector('[data-reorder="' + dir + '-' + index + '"]')
+  if (primary instanceof HTMLButtonElement && !primary.disabled) {
+    primary.focus({ preventScroll: true })
+    return
+  }
+  const other = dir === 'up' ? 'down' : 'up'
+  const fallback = layerListEl.querySelector('[data-reorder="' + other + '-' + index + '"]')
+  if (fallback instanceof HTMLButtonElement && !fallback.disabled) {
+    fallback.focus({ preventScroll: true })
+  }
+}
+
+/**
+ * After a delete rebuilds the list, focus the delete button now at `index`,
+ * or — if only one layer remains (its ✕ is disabled) — focus that layer's
+ * body button instead. (F: governor-reorder-and-export SESSION-02.)
+ *
+ * @param {number} index  The delete slot to focus (clamped to layer count).
+ */
+function focusDeleteButton(index) {
+  if (!layerListEl) return
+  const del = layerListEl.querySelector('[data-del="' + index + '"]')
+  if (del instanceof HTMLButtonElement && !del.disabled) {
+    del.focus({ preventScroll: true })
+    return
+  }
+  const item = layerListEl.querySelector('.layer')
+  if (item) {
+    const body = item.querySelector('.layer__body')
+    if (body instanceof HTMLButtonElement) body.focus({ preventScroll: true })
+  }
+}
+
+/**
  * Render the layer list items into `layerListEl`.
  * @param {Composition} c
  */
@@ -291,22 +344,25 @@ function renderLayers(c) {
         el('button', {
           class: 'btn',
           'aria-label': 'Move ' + mod.meta.name + ' up',
+          'data-reorder': 'up-' + i,
           disabled: isTop,
           text: '\u25B2',
-          on: { click: () => actions.reorderLayer(i, -1) },
+          on: { click: () => { if (actions.reorderLayer(i, -1)) focusReorderButton(i - 1, 'up') } },
         }),
         el('button', {
           class: 'btn',
           'aria-label': 'Move ' + mod.meta.name + ' down',
+          'data-reorder': 'down-' + i,
           disabled: isBottom,
           text: '\u25BC',
-          on: { click: () => actions.reorderLayer(i, 1) },
+          on: { click: () => { if (actions.reorderLayer(i, 1)) focusReorderButton(i + 1, 'down') } },
         }),
       ]),
       el('div', { class: 'layer__order' }, [
         el('button', {
           class: 'btn btn--danger',
           'aria-label': fmt(COMPOSITION.deleteLayer, { name: mod.meta.name }),
+          'data-del': String(i),
           disabled: isOnly,
           text: '\u2715',
           on: {
@@ -314,7 +370,10 @@ function renderLayers(c) {
               // FR-5 floor (\u22651 layer) is enforced by actions.deleteLayer;
               // `disabled` mirrors it so the affordance stays honest.
               // deleteLayer snapshots first \u2014 Undo reverses this.
-              if (actions.deleteLayer(i)) toastKey('layerDeleted')
+              if (actions.deleteLayer(i)) {
+                toastKey('layerDeleted')
+                focusDeleteButton(Math.min(i, (state.composition?.layers.length ?? 1) - 1))
+              }
             },
           },
         }),

@@ -157,3 +157,67 @@ suite('composition panel — seed survives re-render (S06)', () => {
     } finally { unmountPanel(root, prev) }
   })
 })
+
+// ---------------------------------------------------------------------------
+// governor-reorder-and-export SESSION-02 — dock jump fix + focus follow.
+// ---------------------------------------------------------------------------
+
+suite('panel/reorder-context', () => {
+  test('scroll position is preserved across a reorder re-render', () => {
+    const { root, prev } = mountPanel()
+    try {
+      // Make the fixture a real overflow scroller: cap height so the layer
+      // list + sections overflow, then scroll partway down.
+      root.style.setProperty('height', '160px')
+      root.style.setProperty('overflow', 'auto')
+      root.scrollTop = 40
+      assertEq(root.scrollTop, 40, 'scrollTop set before reorder')
+
+      const down0 = root.querySelector('[data-reorder="down-0"]')
+      assert(down0 instanceof HTMLButtonElement, 'down-0 arrow exists')
+      down0.click()
+      assertEq(root.scrollTop, 40, 'scrollTop unchanged after reorder')
+    } finally { unmountPanel(root, prev) }
+  })
+
+  test('focus follows the moved layer after a ▼ reorder', () => {
+    const { root, prev } = mountPanel()
+    try {
+      // Need >=3 layers so the moved slot (index 1) is not at the bottom
+      // and its ▼ stays enabled. mountPanel() guarantees >=2 on entry.
+      while ((state.composition?.layers.length ?? 0) > 3) actions.deleteLayer(0)
+      let tries = 0
+      while ((state.composition?.layers.length ?? 0) < 3 && tries < 10) {
+        actions.randomize(generate(false))
+        tries++
+      }
+      while ((state.composition?.layers.length ?? 0) > 3) actions.deleteLayer(0)
+      assertEq(state.composition?.layers.length, 3, 'exactly 3 layers')
+
+      const down0 = root.querySelector('[data-reorder="down-0"]')
+      assert(down0 instanceof HTMLButtonElement, 'down-0 arrow exists')
+      down0.click()
+      const active = document.activeElement
+      assert(active instanceof HTMLButtonElement, 'active is a button')
+      assertEq(active.getAttribute('data-reorder'), 'down-1', 'focus moved to the new down-1')
+    } finally { unmountPanel(root, prev) }
+  })
+
+  test('boundary fallback: ▼ on the last slot falls back to the ▲', () => {
+    const { root, prev } = mountPanel()
+    try {
+      // Trim to exactly 2 layers. mountPanel() guarantees >=2 on entry.
+      while ((state.composition?.layers.length ?? 0) > 2) actions.deleteLayer(0)
+      assertEq(state.composition?.layers.length, 2, 'exactly 2 layers')
+
+      const down0 = root.querySelector('[data-reorder="down-0"]')
+      assert(down0 instanceof HTMLButtonElement && !down0.disabled, 'down-0 clickable')
+      down0.click()
+      // Layer 0 moved to index 1 (now last). Its ▼ is disabled at the
+      // boundary — focus should fall back to the ▲ at the same index.
+      const active = document.activeElement
+      assert(active instanceof HTMLButtonElement, 'active is a button')
+      assertEq(active.getAttribute('data-reorder'), 'up-1', 'boundary fallback to up-1')
+    } finally { unmountPanel(root, prev) }
+  })
+})
