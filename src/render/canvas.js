@@ -65,6 +65,15 @@ export function context() {
 }
 
 /**
+ * The mounted canvas element, or null before boot step 8. The export engine
+ * records from it; nothing may mutate it (§6.1: backing store is fixed).
+ * @returns {HTMLCanvasElement | null}
+ */
+export function getCanvas() {
+  return canvasEl
+}
+
+/**
  * Write the letterbox colour. Dynamic styling goes through
  * `style.setProperty` (CSSOM), which the CSP does not govern (§11.2).
  *

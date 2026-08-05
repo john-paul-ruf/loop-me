@@ -353,6 +353,17 @@
   - [ ] No unhandled exception can leave the canvas blank or the render loop stopped.
   - [ ] With local storage blocked, the app loads, renders, randomizes, and shares normally.
 
+### FR-19: Video Export (One Loop)
+
+- **User story:** As a builder, I want to download one loop as a video sized for TikTok/Reels, so I can post what I made.
+- **Detail:** Records exactly one loop-boundary-aligned cycle of the live 1080×1920 canvas at up to 30 fps via `captureStream` + `MediaRecorder`. MP4 where the browser supports it, WebM otherwise; both upload to TikTok. Realtime capture; tab must stay visible. No audio track.
+- **Acceptance criteria:**
+  - [ ] File downloads with seed-tagged name.
+  - [ ] Duration ≈ the loop duration.
+  - [ ] First/last frame splice seamlessly.
+  - [ ] Rendering is unchanged during capture (FR-15 holds).
+  - [ ] Unsupported browsers see a clear message, never a broken button.
+
 ---
 
 ## Non-Functional Requirements
