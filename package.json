@@ -8,6 +8,7 @@
     "start": "python3 -m http.server 8082 --bind 127.0.0.1",
     "serve": "python3 -m http.server 8082 --bind 127.0.0.1",
     "test": "python3 -m http.server 8082 --bind 127.0.0.1 && echo 'Open http://127.0.0.1:8082/tests/'",
+    "kill": "lsof -ti:8082 | xargs kill -9",
     "typecheck": "npx -y typescript --noEmit -p jsconfig.json"
   },
   "keywords": [

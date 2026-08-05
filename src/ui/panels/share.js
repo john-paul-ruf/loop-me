@@ -57,6 +57,14 @@ let currentUrl = null
 /** Active export handle; null when idle. Closing the modal cancels this. */
 /** @type {{ cancel: () => void } | null} */
 let exportHandle = null
+/**
+ * Blob + filename waiting for a user click to download. Set when encoding
+ * finishes; cleared on save or modal close. The download cannot be
+ * triggered from the async encode completion — browsers drop programmatic
+ * `<a download>` clicks once transient user activation has expired.
+ * @type {{ blob: Blob, filename: string } | null}
+ */
+let pendingDownload = null
 
 // ---------------------------------------------------------------------------
 // Build
@@ -211,32 +219,64 @@ function buildModal() {
     class: 'hint',
     text: supported ? SHARE.exportHint : SHARE.exportUnsupported,
   })
+
+  const exportIdleLabel = fmt(SHARE.exportButton, { duration: durSec })
+  /** @type {boolean} */
+  let exportEncoding = false
+
+  /**
+   * @param {string} text
+   */
+  function setExportLabel(text) {
+    const span = exportBtn.querySelector('.btn__glyph')
+    while (exportBtn.lastChild) exportBtn.removeChild(exportBtn.lastChild)
+    if (span) exportBtn.appendChild(span)
+    exportBtn.appendChild(document.createTextNode(' ' + text))
+  }
+
+  function resetExportButton() {
+    exportEncoding = false
+    exportHandle = null
+    pendingDownload = null
+    exportBtn.disabled = !supported
+    setExportLabel(exportIdleLabel)
+    exportHint.textContent = supported ? SHARE.exportHint : SHARE.exportUnsupported
+  }
+
   exportBtn.addEventListener('click', () => {
-    if (exportHandle) return
-    const idleLabel = exportBtn.textContent
+    if (pendingDownload) {
+      videoExport.downloadBlob(pendingDownload.blob, pendingDownload.filename)
+      pendingDownload = null
+      toastKey('exportDone')
+      resetExportButton()
+      return
+    }
+    if (exportEncoding || exportHandle) return
+
+    exportEncoding = true
     exportBtn.disabled = true
     exportHandle = videoExport.startExport({
       durationSeconds: durSec,
       seed: currentSeed,
       onProgress: (pct) => {
-        exportBtn.textContent = fmt(SHARE.exportRecording, { pct })
+        setExportLabel(fmt(SHARE.exportRecording, { pct }))
       },
-      onDone: () => {
+      onDone: (blob, filename) => {
         exportHandle = null
+        exportEncoding = false
+        pendingDownload = { blob, filename }
         exportBtn.disabled = false
-        exportBtn.textContent = idleLabel
-        toastKey('exportDone')
+        setExportLabel(SHARE.exportSave)
+        exportHint.textContent = SHARE.exportReadyHint
       },
       onError: () => {
-        exportHandle = null
-        exportBtn.disabled = false
-        exportBtn.textContent = idleLabel
         toastKey('exportFailed')
+        resetExportButton()
       },
     })
     if (!exportHandle) {
-      exportBtn.disabled = false
       toastKey('exportFailed')
+      resetExportButton()
     }
   })
   children.push(el('div', { class: 'field' }, [
@@ -372,6 +412,7 @@ export function close() {
     exportHandle.cancel()
     exportHandle = null
   }
+  pendingDownload = null
   if (releaseTrap) {
     releaseTrap()
     releaseTrap = null

@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * Video export engine (FR-19). Unit tests for the pure helpers.
- * WebCodecs `VideoEncoder` + fMP4 muxing is exercised manually;
+ * WebCodecs `VideoEncoder` + progressive MP4 muxing is exercised manually;
  * these tests cover the deterministic parts.
  */
 
@@ -56,14 +56,19 @@ suite('export/buildFilename', () => {
 })
 
 suite('export/pickCodec', () => {
-  test('prefers avc1.4D4028 (mp4) when supported', async () => {
-    const choice = await pickCodec(async (c) => c === 'avc1.4D4028')
-    assertEq(choice !== null && choice.codec, 'avc1.4D4028', 'avc1 Main 4.0 picked')
+  test('prefers avc1.640033 (High 5.1) when supported', async () => {
+    const choice = await pickCodec(async (c) => c === 'avc1.640033')
+    assertEq(choice !== null && choice.codec, 'avc1.640033', 'avc1 High 5.1 picked')
     assertEq(choice !== null && choice.ext, 'mp4', 'ext is mp4')
   })
-  test('falls back to avc1.640028 (mp4) when Main 4.0 unsupported', async () => {
-    const choice = await pickCodec(async (c) => c === 'avc1.640028')
-    assertEq(choice !== null && choice.codec, 'avc1.640028', 'avc1 High 4.0 fallback')
+  test('falls back to avc1.4D4033 (Main 5.1) when High 5.1 unsupported', async () => {
+    const choice = await pickCodec(async (c) => c === 'avc1.4D4033')
+    assertEq(choice !== null && choice.codec, 'avc1.4D4033', 'avc1 Main 5.1 fallback')
+    assertEq(choice !== null && choice.ext, 'mp4', 'ext is mp4')
+  })
+  test('falls back through 4.0 candidates when no 5.1/5.2', async () => {
+    const choice = await pickCodec(async (c) => c === 'avc1.4D4028')
+    assertEq(choice !== null && choice.codec, 'avc1.4D4028', 'avc1 Main 4.0 fallback')
     assertEq(choice !== null && choice.ext, 'mp4', 'ext is mp4')
   })
   test('falls back to vp09 (webm) when no H.264', async () => {

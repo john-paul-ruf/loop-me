@@ -1,20 +1,26 @@
 // @ts-check
 /**
- * One-loop video export via WebCodecs `VideoEncoder` + a minimal ISO BMFF
- * (fMP4) muxer (FR-19, architecture §6.1).
+ * One-loop video export via WebCodecs `VideoEncoder` + a progressive ISO BMFF
+ * muxer (FR-19, architecture §6.1).
  *
  * Renders frames by calling `painter.paint()` directly at each frame index,
- * encodes them with `VideoEncoder` (H.264), muxes into a proper fragmented
- * MP4, and downloads the blob. This is **faster than realtime** — no rAF
- * waiting, no tab-visible requirement, no dropped frames.
+ * encodes them with `VideoEncoder` (H.264), muxes into a progressive MP4
+ * (ftyp → moov → mdat), and hands the resulting `Blob` to the caller. This is
+ * **faster than realtime** — no rAF waiting, no tab-visible requirement, no
+ * dropped frames.
  *
- * The output MP4 is a well-formed fragmented ISO BMFF file that QuickTime,
- * VLC, and every modern player can open. This replaces the earlier
- * `captureStream` + `MediaRecorder` approach whose Chrome MP4 output was
- * incompatible with QuickTime.
+ * The caller triggers the download via `downloadBlob()` from a user gesture
+ * (click handler). Doing it at the end of an async encode does not work:
+ * browsers drop programmatic `<a download>` clicks once transient user
+ * activation has expired (the original export bug).
  *
- * Codec selection: H.264 Main 4.0 (`avc1.4D4028`) first — produces
- * universally-compatible MP4. Falls back to VP9 → WebM.
+ * The output is a progressive (non-fragmented) MP4 with full per-sample tables
+ * (stts/stsc/stsz/stco/stss) — the layout QuickTime Player requires for a
+ * local file. Fragmented MP4 (fMP4) is rejected by Apple's local-file parser.
+ *
+ * Codec selection: H.264 High 5.1 (`avc1.640033`) first — safely above 1080×1920
+ * level boundaries. Falls back through Main 5.1, High 5.2, 4.0 variants, then
+ * VP9 → WebM.
  *
  * Imports `./canvas.js`, `./painter.js`, `./prepare.js`,
  * `../core/state.js` (render → render sibling and render → core are
@@ -59,8 +65,10 @@ export function buildFilename(durationSeconds, seed, ext) {
  */
 
 /**
- * Pick the best available codec for offline WebCodecs encoding. H.264 Main
- * 4.0 produces a universally-compatible MP4; VP9 is the WebM fallback.
+ * Pick the best available codec for offline WebCodecs encoding. H.264 High
+ * 5.1 produces a universally-compatible MP4 that comfortably handles the
+ * 1080×1920 backing store at level 4.0's boundary; lower-level candidates
+ * are kept as fallbacks. VP9 is the WebM fallback.
  *
  * @param {(c: string) => Promise<boolean>} [isSupported]
  * @returns {Promise<CodecChoice | null>}
@@ -74,6 +82,7 @@ export async function pickCodec(isSupported = async (c) => {
       height: HEIGHT,
       bitrate: 12_000_000,
       framerate: 30,
+      avc: { format: 'avc' },
     })
     return r.supported === true
   } catch {
@@ -82,8 +91,11 @@ export async function pickCodec(isSupported = async (c) => {
 }) {
   /** @type {CodecChoice[]} */
   const candidates = [
-    { codec: 'avc1.4D4028', ext: 'mp4' },
-    { codec: 'avc1.640028', ext: 'mp4' },
+    { codec: 'avc1.640033', ext: 'mp4' }, // High 5.1 — 1080×1920 safe
+    { codec: 'avc1.4D4033', ext: 'mp4' }, // Main 5.1
+    { codec: 'avc1.640034', ext: 'mp4' }, // High 5.2
+    { codec: 'avc1.4D4028', ext: 'mp4' }, // Main 4.0 — borderline for 1080×1920
+    { codec: 'avc1.640028', ext: 'mp4' }, // High 4.0 — borderline
     { codec: 'vp09.00.10.08', ext: 'webm' },
   ]
   for (const c of candidates) {
@@ -102,23 +114,49 @@ export function isExportSupported() {
 }
 
 // ---------------------------------------------------------------------------
-// ISO BMFF (fMP4) muxer — minimal but correct
+// ISO BMFF muxer — progressive (non-fragmented) MP4
+//
+// QuickTime Player rejects fragmented MP4 (fMP4) as a local file: fMP4 is a
+// streaming/HLS container, and Apple's local-file parser requires a
+// progressive layout — `ftyp → moov (with full sample tables) → mdat`. The
+// moov carries the real per-sample boxes (stts/stsc/stsz/stco/stss), and
+// mdat is one big chunk with all encoded bytes back-to-back. This is the
+// format FFmpeg's `+faststart` produces and what every NLE exports.
 // ---------------------------------------------------------------------------
 
 /** @param {number[]} out @param {number[]} type @param {number[]} payload */
 function box(out, type, payload) {
   const size = 8 + payload.length
   u32(out, size)
-  out.push(...type, ...payload)
+  pushN(out, type)
+  if (payload.length > 0) pushN(out, payload)
 }
 
 /** @param {number[]} out @param {number[]} type @param {number} version @param {number} flags @param {number[]} payload */
 function fullbox(out, type, version, flags, payload) {
   const size = 12 + payload.length
   u32(out, size)
-  out.push(...type)
+  pushN(out, type)
   out.push(version & 0xFF, (flags >>> 16) & 0xFF, (flags >>> 8) & 0xFF, flags & 0xFF)
-  out.push(...payload)
+  if (payload.length > 0) pushN(out, payload)
+}
+
+/**
+ * Push an array of bytes into `out` without spreading — `out.push(...big)`
+ * blows the call stack when payload is the entire video stream (millions of
+ * bytes). Falls back to a loop for any non-trivial size.
+ * @param {number[]} out
+ * @param {number[] | Uint8Array} bytes
+ */
+function pushN(out, bytes) {
+  const n = bytes.length
+  if (n === 0) return
+  if (n < 65536) {
+    // Small arrays: spread is fastest and safe under the argument limit.
+    out.push(...bytes)
+    return
+  }
+  for (let i = 0; i < n; i++) out.push(bytes[i])
 }
 
 /** @param {number[]} out @param {number} v */
@@ -136,12 +174,11 @@ function buildFtyp() {
   /** @type {number[]} */
   const out = []
   box(out, [0x66, 0x74, 0x79, 0x70], [
-    ...[0x69, 0x73, 0x6F, 0x6D], // 'isom'
+    ...[0x69, 0x73, 0x6F, 0x6D], // 'isom' — major brand
     ...[0x00, 0x00, 0x02, 0x00], // minor version 512
-    ...[0x69, 0x73, 0x6F, 0x6D], // 'isom'
-    ...[0x69, 0x73, 0x6F, 0x32], // 'iso2'
-    ...[0x61, 0x76, 0x63, 0x31], // 'avc1'
-    ...[0x6D, 0x70, 0x34, 0x31], // 'mp41'
+    ...[0x69, 0x73, 0x6F, 0x6D], // 'isom' — compatible
+    ...[0x61, 0x76, 0x63, 0x31], // 'avc1' — compatible
+    ...[0x6D, 0x70, 0x34, 0x31], // 'mp41' — compatible
   ])
   return out
 }
@@ -153,21 +190,32 @@ const UNITY_MATRIX = [
 ]
 
 /**
- * Build the moov box for fragmented MP4.
+ * @typedef {{ size: number, isKeyframe: boolean }} Sample
+ */
+
+/**
+ * Build the moov box for a progressive (non-fragmented) MP4. All sample
+ * tables live here — there is no moof/trun. This is what QuickTime expects
+ * for a local file.
+ *
  * @param {number} timescale
  * @param {number} width
  * @param {number} height
  * @param {Uint8Array} avccData  AVCDecoderConfigurationRecord from the encoder
+ * @param {number} duration      Total duration in timescale units
+ * @param {number} frameDur      Per-frame duration in timescale units
+ * @param {Sample[]} samples     One entry per encoded frame
+ * @param {number} mdatOffset    Byte offset of the mdat payload from file start
  * @returns {number[]}
  */
-function buildMoov(timescale, width, height, avccData) {
+function buildMoov(timescale, width, height, avccData, duration, frameDur, samples, mdatOffset) {
   // mvhd
   /** @type {number[]} */
   const mvhdPayload = []
   u32(mvhdPayload, 0) // creation_time
   u32(mvhdPayload, 0) // modification_time
   u32(mvhdPayload, timescale)
-  u32(mvhdPayload, 0) // duration (0 for fmp4 — actual duration in moof)
+  u32(mvhdPayload, duration) // duration in timescale units (non-zero for QT)
   u32(mvhdPayload, 0x00010000) // rate = 1.0
   u16(mvhdPayload, 0x0100) // volume = 1.0
   u16(mvhdPayload, 0) // reserved
@@ -186,7 +234,7 @@ function buildMoov(timescale, width, height, avccData) {
   u32(tkhdPayload, 0) // modification_time
   u32(tkhdPayload, 1) // track_ID
   u32(tkhdPayload, 0) // reserved
-  u32(tkhdPayload, 0) // duration
+  u32(tkhdPayload, duration) // duration in movie timescale
   for (let i = 0; i < 8; i++) tkhdPayload.push(0) // reserved
   u16(tkhdPayload, 0) // layer
   u16(tkhdPayload, 0) // alternate_group
@@ -205,7 +253,7 @@ function buildMoov(timescale, width, height, avccData) {
   u32(mdhdPayload, 0) // creation_time
   u32(mdhdPayload, 0) // modification_time
   u32(mdhdPayload, timescale)
-  u32(mdhdPayload, 0) // duration
+  u32(mdhdPayload, duration) // duration in media timescale
   u16(mdhdPayload, 0x55C4) // language = 'und'
   u16(mdhdPayload, 0) // pre_defined
   /** @type {number[]} */
@@ -225,10 +273,12 @@ function buildMoov(timescale, width, height, avccData) {
   const hdlr = []
   fullbox(hdlr, [0x68, 0x64, 0x6C, 0x72], 0, 0, hdlrPayload)
 
-  // vmhd
+  // vmhd — video media header: graphicsmode + opcolor (3 × u16)
+  /** @type {number[]} */
+  const vmhdPayload = [0, 0, 0, 0, 0, 0, 0, 0] // graphicsmode=0, opcolor=0,0,0
   /** @type {number[]} */
   const vmhd = []
-  fullbox(vmhd, [0x76, 0x6D, 0x68, 0x64], 0, 1, [0, 0, 0, 0])
+  fullbox(vmhd, [0x76, 0x6D, 0x68, 0x64], 0, 1, vmhdPayload)
 
   // dinf → dref
   /** @type {number[]} */
@@ -277,138 +327,102 @@ function buildMoov(timescale, width, height, avccData) {
   const stsd = []
   fullbox(stsd, [0x73, 0x74, 0x73, 0x64], 0, 0, stsdPayload)
 
+  // stts — time-to-sample: one run of N frames at frameDur each.
+  /** @type {number[]} */
+  const sttsPayload = []
+  u32(sttsPayload, 1) // entry_count
+  u32(sttsPayload, samples.length) // sample_count
+  u32(sttsPayload, frameDur) // sample_delta
   /** @type {number[]} */
   const stts = []
-  fullbox(stts, [0x73, 0x74, 0x74, 0x73], 0, 0, [0, 0, 0, 0])
+  fullbox(stts, [0x73, 0x74, 0x74, 0x73], 0, 0, sttsPayload)
+
+  // stsc — sample-to-chunk: all samples in one chunk.
+  /** @type {number[]} */
+  const stscPayload = []
+  u32(stscPayload, 1) // entry_count
+  u32(stscPayload, 1) // first_chunk
+  u32(stscPayload, samples.length) // samples_per_chunk
+  u32(stscPayload, 1) // sample_description_index
   /** @type {number[]} */
   const stsc = []
-  fullbox(stsc, [0x73, 0x74, 0x73, 0x63], 0, 0, [0, 0, 0, 0])
+  fullbox(stsc, [0x73, 0x74, 0x73, 0x63], 0, 0, stscPayload)
+
+  // stsz — sample sizes, one entry per frame.
+  /** @type {number[]} */
+  const stszPayload = []
+  u32(stszPayload, 0) // sample_size (0 → per-sample below)
+  u32(stszPayload, samples.length) // sample_count
+  for (const s of samples) u32(stszPayload, s.size)
   /** @type {number[]} */
   const stsz = []
-  fullbox(stsz, [0x73, 0x74, 0x73, 0x7A], 0, 0, [0, 0, 0, 0, 0, 0, 0, 0])
+  fullbox(stsz, [0x73, 0x74, 0x73, 0x7A], 0, 0, stszPayload)
+
+  // stco — chunk offset: one chunk, located at mdatOffset.
+  /** @type {number[]} */
+  const stcoPayload = []
+  u32(stcoPayload, 1) // entry_count
+  u32(stcoPayload, mdatOffset) // chunk_offset
   /** @type {number[]} */
   const stco = []
-  fullbox(stco, [0x73, 0x74, 0x63, 0x6F], 0, 0, [0, 0, 0, 0])
+  fullbox(stco, [0x73, 0x74, 0x63, 0x6F], 0, 0, stcoPayload)
 
+  // stss — sync sample table (keyframe indices). 1-based.
+  /** @type {number[]} */
+  const keyframeIdx = []
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i].isKeyframe) keyframeIdx.push(i + 1)
+  }
+  /** @type {number[]} */
+  const stss = []
+  if (keyframeIdx.length > 0) {
+    /** @type {number[]} */
+    const stssPayload = []
+    u32(stssPayload, keyframeIdx.length)
+    for (const idx of keyframeIdx) u32(stssPayload, idx)
+    fullbox(stss, [0x73, 0x74, 0x73, 0x73], 0, 0, stssPayload)
+  }
+
+  /** @type {number[][]} */
+  const stblChildren = keyframeIdx.length > 0
+    ? [stsd, stts, stss, stsc, stsz, stco]
+    : [stsd, stts, stsc, stsz, stco]
   /** @type {number[]} */
   const stbl = []
-  box(stbl, [0x73, 0x74, 0x62, 0x6C], [...stsd, ...stts, ...stsc, ...stsz, ...stco])
+  box(stbl, [0x73, 0x74, 0x62, 0x6C], stblChildren.reduce((acc, b) => { pushN(acc, b); return acc }, []))
   /** @type {number[]} */
   const minf = []
-  box(minf, [0x6D, 0x69, 0x6E, 0x66], [...vmhd, ...dinf, ...stbl])
+  box(minf, [0x6D, 0x69, 0x6E, 0x66], [vmhd, dinf, stbl].reduce((acc, b) => { pushN(acc, b); return acc }, []))
   /** @type {number[]} */
   const mdia = []
-  box(mdia, [0x6D, 0x64, 0x69, 0x61], [...mdhd, ...hdlr, ...minf])
+  box(mdia, [0x6D, 0x64, 0x69, 0x61], [mdhd, hdlr, minf].reduce((acc, b) => { pushN(acc, b); return acc }, []))
   /** @type {number[]} */
   const trak = []
-  box(trak, [0x74, 0x72, 0x61, 0x6B], [...tkhd, ...mdia])
-
-  // mvex → trex
-  /** @type {number[]} */
-  const trexPayload = []
-  u32(trexPayload, 1) // track_ID
-  u32(trexPayload, 1) // default_sample_description_index
-  u32(trexPayload, 0) // default_sample_duration
-  u32(trexPayload, 0) // default_sample_size
-  u32(trexPayload, 0) // default_sample_flags
-  /** @type {number[]} */
-  const trex = []
-  fullbox(trex, [0x74, 0x72, 0x65, 0x78], 0, 0, trexPayload)
-  /** @type {number[]} */
-  const mvex = []
-  box(mvex, [0x6D, 0x76, 0x65, 0x78], trex)
+  box(trak, [0x74, 0x72, 0x61, 0x6B], [tkhd, mdia].reduce((acc, b) => { pushN(acc, b); return acc }, []))
 
   /** @type {number[]} */
   const moov = []
-  box(moov, [0x6D, 0x6F, 0x6F, 0x76], [...mvhd, ...trak, ...mvex])
+  box(moov, [0x6D, 0x6F, 0x6F, 0x76], [mvhd, trak].reduce((acc, b) => { pushN(acc, b); return acc }, []))
   return moov
 }
 
 /**
- * Build the moof box for one fragment.
- *
- * @param {number} seqNum
- * @param {number} dataOffset  Byte offset from the start of the moof box to the first sample data in mdat.
- * @param {{ size: number, duration: number, isKeyframe: boolean }[]} samples
- * @returns {number[]}
- */
-function buildMoof(seqNum, dataOffset, samples) {
-  // mfhd
-  /** @type {number[]} */
-  const mfhdPayload = []
-  u32(mfhdPayload, seqNum)
-  /** @type {number[]} */
-  const mfhd = []
-  fullbox(mfhd, [0x6D, 0x66, 0x68, 0x64], 0, 0, mfhdPayload)
-
-  // tfhd — default-base-is-moof flag
-  /** @type {number[]} */
-  const tfhdPayload = []
-  u32(tfhdPayload, 1) // track_ID
-  /** @type {number[]} */
-  const tfhd = []
-  fullbox(tfhd, [0x74, 0x66, 0x68, 0x64], 0, 0x020000, tfhdPayload)
-
-  // tfdt (version 1) — baseMediaDecodeTime = 0 for first fragment
-  /** @type {number[]} */
-  const tfdtPayload = []
-  u32(tfdtPayload, 0) // high
-  u32(tfdtPayload, 0) // low
-  /** @type {number[]} */
-  const tfdt = []
-  fullbox(tfdt, [0x74, 0x66, 0x64, 0x74], 1, 0, tfdtPayload)
-
-  // trun — data-offset + sample-duration + sample-size + sample-flags
-  // flags: 0x000001 (data-offset-present)
-  //      | 0x000100 (sample-duration-present)
-  //      | 0x000200 (sample-size-present)
-  //      | 0x000400 (sample-flags-present)
-  /** @type {number[]} */
-  const trunPayload = []
-  u32(trunPayload, samples.length) // sample_count
-  u32(trunPayload, dataOffset) // data_offset
-  for (const s of samples) {
-    u32(trunPayload, s.duration)
-  }
-  for (const s of samples) {
-    u32(trunPayload, s.size)
-  }
-  for (const s of samples) {
-    // sample_flags: sample_depends_on is bits 24-23
-    // 2 = does not depend on others (I-frame), 1 = depends on others (P-frame)
-    u32(trunPayload, s.isKeyframe ? 0x02000000 : 0x01000000)
-  }
-  /** @type {number[]} */
-  const trun = []
-  fullbox(trun, [0x74, 0x72, 0x75, 0x6E], 0, 0x000701, trunPayload)
-
-  /** @type {number[]} */
-  const traf = []
-  box(traf, [0x74, 0x72, 0x61, 0x66], [...tfhd, ...tfdt, ...trun])
-
-  /** @type {number[]} */
-  const moof = []
-  box(moof, [0x6D, 0x6F, 0x6F, 0x66], [...mfhd, ...traf])
-  return moof
-}
-
-/**
- * Build the mdat box wrapping all encoded chunks.
+ * Build the mdat box wrapping all encoded chunks. The payload offset within
+ * the file is `mdatOffset`; stco in moov points to the first byte of payload
+ * (i.e. `mdatOffset + 8` for the box header).
  * @param {Uint8Array[]} chunks
- * @returns {number[]}
+ * @returns {Uint8Array}
  */
 function buildMdat(chunks) {
   let total = 0
   for (const c of chunks) total += c.length
-  const payload = new Array(total)
+  const payload = new Uint8Array(total)
   let off = 0
   for (const c of chunks) {
-    for (let i = 0; i < c.length; i++) payload[off++] = c[i]
+    payload.set(c, off)
+    off += c.length
   }
-  /** @type {number[]} */
-  const mdat = []
-  box(mdat, [0x6D, 0x64, 0x61, 0x74], payload)
-  return mdat
+  return payload
 }
 
 // ---------------------------------------------------------------------------
@@ -427,7 +441,7 @@ function ebmlId(out, v) {
 function ebmlEl(out, id, payload) {
   ebmlId(out, id)
   ebmlId(out, payload.length)
-  out.push(...payload)
+  pushN(out, payload)
 }
 
 /** @param {number[]} out @param {number} id @param {number} val */
@@ -530,17 +544,26 @@ function paintFrame(frame, totalFrames) {
 let running = false
 
 // ---------------------------------------------------------------------------
-// startExport — render + encode + mux + download
+// startExport — render + encode + mux (download is the caller's job; see
+// downloadBlob). Triggering `<a download>` from async code does not work:
+// Chrome drops programmatic downloads once transient user activation
+// has expired, which always happens during the multi-second encode.
 // ---------------------------------------------------------------------------
 
 /**
- * Render and export exactly one loop as a video file.
+ * Render and export exactly one loop as a video blob.
+ *
+ * The download is **not** triggered here: long-running async encoding
+ * exhausts the browser's transient user-activation, so a programmatic
+ * `<a download>` click at the end is silently dropped by Chrome. Instead,
+ * the blob + filename are returned via `onDone` and the caller must trigger
+ * the download from a fresh user gesture (e.g. a "Save video" button click).
  *
  * @param {{
  *   durationSeconds: number,
  *   seed?: string | null,
  *   onProgress?: (pct: number) => void,
- *   onDone?: (filename: string) => void,
+ *   onDone?: (blob: Blob, filename: string) => void,
  *   onError?: (message: string) => void,
  * }} opts
  * @returns {{ cancel: () => void } | null} null if unsupported or already running.
@@ -574,11 +597,11 @@ export function startExport(opts) {
   if (wasPlaying) state.playing = false
 
   runWebCodecsExport(cv, opts, outputFrames, totalFrames, onProgress)
-    .then((filename) => {
+    .then(({ blob, filename }) => {
       if (cancelled) return
       running = false
       if (wasPlaying) state.playing = true
-      onDone(filename)
+      onDone(blob, filename)
     })
     .catch((err) => {
       if (cancelled) {
@@ -602,12 +625,32 @@ export function startExport(opts) {
 }
 
 /**
+ * Trigger a blob download synchronously from a user gesture. Must be called
+ * inside a click/keypress handler — browsers drop programmatic `<a download>`
+ * clicks when transient user activation has expired (the export bug).
+ *
+ * @param {Blob} blob
+ * @param {string} filename
+ */
+export function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+/**
  * @param {HTMLCanvasElement} cv
  * @param {{ durationSeconds: number, seed?: string | null }} opts
  * @param {number} outputFrames
  * @param {number} totalFrames
  * @param {(pct: number) => void} onProgress
- * @returns {Promise<string>}
+ * @returns {Promise<{ blob: Blob, filename: string }>}
  */
 async function runWebCodecsExport(cv, opts, outputFrames, totalFrames, onProgress) {
   const codec = await pickCodec()
@@ -623,54 +666,91 @@ async function runWebCodecsExport(cv, opts, outputFrames, totalFrames, onProgres
   const keyframeFlags = []
   /** @type {Uint8Array | null} */
   let avccData = null
+  /** @type {any} */
+  let encoderError = null
 
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
       const data = new Uint8Array(chunk.byteLength)
       chunk.copyTo(data)
       chunks.push(data)
-      const m = /** @type {{ type?: string, decoderConfig?: { description?: ArrayBuffer } }} */ (meta)
-      keyframeFlags.push(m.type === 'key')
+      // Keyframe status is on the chunk itself, NOT on the metadata.
+      // EncodedVideoChunkMetadata has no `type` field.
+      keyframeFlags.push(chunk.type === 'key')
+      const m = /** @type {{ decoderConfig?: { description?: ArrayBuffer } }} */ (meta)
       if (avccData === null && m.decoderConfig && m.decoderConfig.description) {
         avccData = new Uint8Array(m.decoderConfig.description)
       }
     },
     error: (e) => {
-      throw new Error('encoder error: ' + e.message)
+      // Capture, don't throw — WebCodecs runs this on a separate task, so a
+      // throw here would be an uncaught exception that leaves the await
+      // chain (and thus onDone/onError) hanging forever.
+      encoderError = e
     },
   })
 
-  encoder.configure({
-    codec: codec.codec,
-    width: WIDTH,
-    height: HEIGHT,
-    bitrate: 12_000_000,
-    framerate: 30,
-    avc: { format: 'avc' },
-  })
-
-  for (let i = 0; i < outputFrames; i++) {
-    if (!running) {
-      try { encoder.close() } catch {}
-      throw new Error('export cancelled')
-    }
-
-    paintFrame(i * 2, totalFrames) // sample every other 60fps frame
-
-    const frame = new VideoFrame(cv, {
-      timestamp: Math.round((i / 30) * 1_000_000), // microseconds
-      duration: Math.round(1_000_000 / 30),
+  try {
+    encoder.configure({
+      codec: codec.codec,
+      width: WIDTH,
+      height: HEIGHT,
+      bitrate: 12_000_000,
+      framerate: 30,
+      avc: { format: 'avc' },
     })
-    encoder.encode(frame, { keyFrame: i === 0 })
-    frame.close()
-
-    onProgress(Math.min(99, Math.round(((i + 1) / outputFrames) * 100)))
-    await new Promise((r) => setTimeout(r, 0)) // yield to encoder
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    throw new Error('configure failed: ' + msg)
   }
 
-  await encoder.flush()
-  encoder.close()
-  onProgress(100)
+  try {
+    for (let i = 0; i < outputFrames; i++) {
+      if (!running) {
+        try { encoder.close() } catch {}
+        throw new Error('export cancelled')
+      }
+      if (encoderError) {
+        throw new Error('encoder error: ' + encoderError.message)
+      }
+
+      // Back-pressure: if the encoder's internal queue is deep, wait for it
+      // to drain before queueing more. Without this, long videos fill the
+      // queue and `flush()` can stall.
+      while (encoder.encodeQueueSize > 8) {
+        if (encoderError) {
+          throw new Error('encoder error: ' + encoderError.message)
+        }
+        await new Promise((r) => setTimeout(r, 4))
+      }
+
+      paintFrame(i * 2, totalFrames) // sample every other 60fps frame
+
+      const frame = new VideoFrame(cv, {
+        timestamp: Math.round((i / 30) * 1_000_000), // microseconds
+        duration: Math.round(1_000_000 / 30),
+      })
+      encoder.encode(frame, { keyFrame: i === 0 })
+      frame.close()
+
+      onProgress(Math.min(99, Math.round(((i + 1) / outputFrames) * 100)))
+      await new Promise((r) => setTimeout(r, 0)) // yield to encoder
+    }
+
+    if (encoderError) {
+      throw new Error('encoder error: ' + encoderError.message)
+    }
+
+    await encoder.flush()
+    encoder.close()
+    onProgress(100)
+
+    if (encoderError) {
+      throw new Error('encoder error: ' + encoderError.message)
+    }
+  } finally {
+    try { if (encoder.state !== 'closed') encoder.close() } catch {}
+  }
 
   /** @type {Blob} */
   let blob
@@ -680,21 +760,20 @@ async function runWebCodecsExport(cv, opts, outputFrames, totalFrames, onProgres
     blob = buildWebm(chunks, keyframeFlags, 30)
   }
 
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.rel = 'noopener'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
-
-  return filename
+  return { blob, filename }
 }
 
 /**
- * Build a complete fragmented MP4 file.
+ * Build a complete progressive (non-fragmented) MP4 file.
+ *
+ * Layout: `ftyp → moov (full sample tables) → mdat`.
+ * This is the format QuickTime Player requires for a local file — fMP4
+ * (ftyp → moov → moof → mdat) is rejected by Apple's local-file parser.
+ *
+ * The stco box in moov must point to the first byte of sample data inside
+ * mdat. Since mdat comes after moov, we build moov twice: once with a
+ * placeholder offset to measure its size, then again with the real offset.
+ * The offset is always a 4-byte u32, so moov's size is stable between passes.
  *
  * @param {Uint8Array[]} chunks
  * @param {boolean[]} keyframeFlags
@@ -704,28 +783,42 @@ async function runWebCodecsExport(cv, opts, outputFrames, totalFrames, onProgres
 function buildMp4(chunks, keyframeFlags, avccData) {
   if (avccData === null) throw new Error('no decoder config from encoder')
 
-  const timescale = 30000 // standard: 30000 ticks/sec, frame dur = 1000
-  const frameDur = Math.round(timescale / 30) // 1000
+  const timescale = 30000
+  const frameDur = Math.round(timescale / 30)
+  const totalDuration = chunks.length * frameDur
 
+  /** @type {Sample[]} */
   const samples = chunks.map((c, i) => ({
     size: c.length,
-    duration: frameDur,
     isKeyframe: keyframeFlags[i],
   }))
 
   const ftyp = buildFtyp()
-  // moof size is needed to calculate data_offset.
-  // data_offset = ftyp.length + moov.length + moof.length + 8 (mdat header)
-  // But moof contains the data_offset, creating a chicken-and-egg.
-  // Solution: build moof with a placeholder data_offset, measure its length,
-  // then rebuild with the correct offset. Since offset doesn't change the
-  // byte length (always 4 bytes), the moof size is stable.
-  const moovNoAvcc = buildMoov(timescale, WIDTH, HEIGHT, avccData)
-  const moofPlaceholder = buildMoof(1, 0, samples)
-  const dataOffset = ftyp.length + moovNoAvcc.length + moofPlaceholder.length + 8
-  const moof = buildMoof(1, dataOffset, samples)
-  const mdat = buildMdat(chunks)
 
-  const file = [...ftyp, ...moovNoAvcc, ...moof, ...mdat]
-  return new Blob([new Uint8Array(file)], { type: 'video/mp4' })
+  // Pass 1: placeholder offset to measure moov size.
+  const moovTemp = buildMoov(timescale, WIDTH, HEIGHT, avccData, totalDuration, frameDur, samples, 0)
+  // mdat payload starts after ftyp + moov + 8-byte mdat box header.
+  const mdatPayloadOffset = ftyp.length + moovTemp.length + 8
+
+  // Pass 2: rebuild moov with the correct stco offset.
+  const moov = buildMoov(timescale, WIDTH, HEIGHT, avccData, totalDuration, frameDur, samples, mdatPayloadOffset)
+  const mdatPayload = buildMdat(chunks)
+
+  const mdatBoxSize = 8 + mdatPayload.length
+  const totalLen = ftyp.length + moov.length + mdatBoxSize
+  const file = new Uint8Array(totalLen)
+  let off = 0
+  file.set(ftyp, off);       off += ftyp.length
+  file.set(moov, off);       off += moov.length
+  // mdat box header — write directly into the Uint8Array
+  file[off] = (mdatBoxSize >>> 24) & 0xFF; off++
+  file[off] = (mdatBoxSize >>> 16) & 0xFF; off++
+  file[off] = (mdatBoxSize >>> 8) & 0xFF; off++
+  file[off] = mdatBoxSize & 0xFF; off++
+  file[off] = 0x6D; off++
+  file[off] = 0x64; off++
+  file[off] = 0x61; off++
+  file[off] = 0x74; off++
+  file.set(mdatPayload, off)
+  return new Blob([file], { type: 'video/mp4' })
 }
