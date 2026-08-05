@@ -32,6 +32,8 @@ import { toast, toastKey } from '../feedback.js'
 import * as actions from '../../core/actions.js'
 import * as clock from '../../core/clock.js'
 import * as governor from '../../render/governor.js'
+import * as videoExport from '../../render/export.js'
+import { DURATIONS } from '../../model/composition.js'
 
 /**
  * @typedef {import('../../model/params.js').Composition} Composition
@@ -52,6 +54,9 @@ let returnFocus = null
 let currentSeed = null
 /** @type {string | null} */
 let currentUrl = null
+/** Active export handle; null when idle. Closing the modal cancels this. */
+/** @type {{ cancel: () => void } | null} */
+let exportHandle = null
 
 // ---------------------------------------------------------------------------
 // Build
@@ -194,6 +199,55 @@ function buildModal() {
   // --- Divider ---
   children.push(el('div', { class: 'divider' }))
 
+  // --- Download video (FR-19) ---
+  const c = state.composition
+  const durSec = c ? DURATIONS[c.durationId] : DURATIONS[0]
+  const supported = videoExport.isExportSupported()
+  const exportBtn = /** @type {HTMLButtonElement} */ (el('button', { class: 'btn btn--block', disabled: !supported }, [
+    el('span', { class: 'btn__glyph', 'aria-hidden': 'true', text: '\u2B73' }),
+    document.createTextNode(' ' + fmt(SHARE.exportButton, { duration: durSec })),
+  ]))
+  const exportHint = el('p', {
+    class: 'hint',
+    text: supported ? SHARE.exportHint : SHARE.exportUnsupported,
+  })
+  exportBtn.addEventListener('click', () => {
+    if (exportHandle) return
+    const idleLabel = exportBtn.textContent
+    exportBtn.disabled = true
+    exportHandle = videoExport.startExport({
+      durationSeconds: durSec,
+      seed: currentSeed,
+      onProgress: (pct) => {
+        exportBtn.textContent = fmt(SHARE.exportRecording, { pct })
+      },
+      onDone: () => {
+        exportHandle = null
+        exportBtn.disabled = false
+        exportBtn.textContent = idleLabel
+        toastKey('exportDone')
+      },
+      onError: () => {
+        exportHandle = null
+        exportBtn.disabled = false
+        exportBtn.textContent = idleLabel
+        toastKey('exportFailed')
+      },
+    })
+    if (!exportHandle) {
+      exportBtn.disabled = false
+      toastKey('exportFailed')
+    }
+  })
+  children.push(el('div', { class: 'field' }, [
+    el('label', { class: 'label', text: SHARE.exportLabel }),
+    exportBtn,
+    exportHint,
+  ]))
+
+  // --- Divider ---
+  children.push(el('div', { class: 'divider' }))
+
   // --- Save to gallery ---
   const descInput = el('textarea', {
     class: 'textarea',
@@ -310,9 +364,14 @@ export async function open(triggerEl) {
 }
 
 /**
- * Close the modal.
+ * Close the modal. Cancels an in-flight export (D9 — never leave a recorder
+ * running) before tearing down the DOM.
  */
 export function close() {
+  if (exportHandle) {
+    exportHandle.cancel()
+    exportHandle = null
+  }
   if (releaseTrap) {
     releaseTrap()
     releaseTrap = null

@@ -103,6 +103,8 @@ export const TOASTS = {
   undone: 'Change undone',
   layerDeleted: 'Layer removed',
   layerDuplicated: 'Layer duplicated',
+  exportDone: 'Video saved \u2014 check your downloads.',
+  exportFailed: 'Export failed \u2014 nothing was saved.',
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +188,13 @@ export const SHARE = {
   pasteHint: 'A bare seed or a whole URL both work. Extra spaces are fine.',
   customSchemeBaked: 'Your scheme \u201c{name}\u201d is baked in',
   customSchemeBakedBody: 'Whoever opens this sees your exact colours.',
+  exportLabel: 'Download video',
+  /** `{duration}` → loop seconds */
+  exportButton: 'Export video ({duration}s)',
+  /** `{pct}` → 0\u2013100 */
+  exportRecording: 'Recording\u2026 {pct}%',
+  exportHint: 'Saves one full loop \u2014 1080\u00d71920, ready for TikTok or Reels. Recording is realtime: keep this tab visible.',
+  exportUnsupported: 'Video export isn\u2019t available in this browser.',
 }
 
 // ---------------------------------------------------------------------------
