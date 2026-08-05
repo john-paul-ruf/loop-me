@@ -423,8 +423,8 @@ NFR/Performance requires no memory growth over a ten-minute run. Binding rules f
   subtraction and one store.
 - A `warmupSkip` counter is set to **60** on any composition change; samples are ignored until it
   drains (FR-15).
-- Enter WARN when the window median exceeds **20 ms** across **two consecutive** windows.
-- Leave WARN when it drops below **18 ms** across **two consecutive** windows. The hysteresis gap
+- Enter WARN when the window median exceeds **34 ms** across **two consecutive** windows.
+- Leave WARN when it drops below **30 ms** across **two consecutive** windows. The hysteresis gap
   is what prevents a single GC pause or a tab refocus from flapping the banner.
 - On state change the governor publishes to the `governor` topic. `ui/feedback.js` renders the
   banner, `ui/panels/composition.js` disables **Add layer** with the reason as visible adjacent

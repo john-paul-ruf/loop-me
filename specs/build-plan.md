@@ -832,12 +832,12 @@ The first pixels. `render/*` never imports `ui/*` (arch §4 rule 4).
       fence closes — the frame path proper allocates nothing (§6.5).*
 - [x] Create `/src/render/governor.js` — two preallocated `Float64Array(90)`, median by
       quickselect **once per completed window** (never per frame), `warmupSkip = 60` on any
-      composition change, enter WARN > 20 ms across two windows, leave < 18 ms across two windows.
+      composition change, enter WARN > 34 ms across two windows, leave < 30 ms across two windows.
       **Holds no reference to the painter** (arch §6.6). Publishes to the `governor` topic.
       *Imports `core/state.js` and nothing else — the §6.6 isolation is checkable from the import
       list. Three decisions the spec left open: (1) `reset()` (the composition-change hook, wired
       by F1) keeps the warned *state* — leaving WARN requires two cool windows of evidence, not a
-      mere edit; (2) medians in the 18–20 ms dead band reset both streak counters, so mixed
+      mere edit; (2) medians in the 30–34 ms dead band reset both streak counters, so mixed
       evidence never accumulates toward either transition; (3) quickselect uses a median-of-three
       pivot — deterministic (no `Math.random`) and safe against the sorted-ish input a steady
       frame rate produces. Upper median for the even window; the 45th/46th distinction is well

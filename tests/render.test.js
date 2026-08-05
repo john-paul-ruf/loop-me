@@ -394,10 +394,10 @@ suite('render/governor', () => {
 
     let t = 0
     sample(t)                 // primes lastNow
-    t = feed(t, 60, 25)       // warm-up: skipped entirely
-    t = feed(t, 90, 25)       // window 1 hot
+    t = feed(t, 60, 40)       // warm-up: skipped entirely
+    t = feed(t, 90, 40)       // window 1 hot
     assertEq(isWarned(), false, 'one hot window is not enough')
-    t = feed(t, 90, 25)       // window 2 hot
+    t = feed(t, 90, 40)       // window 2 hot
     assertEq(isWarned(), true, 'two consecutive hot windows warn')
 
     t = feed(t, 90, 15)       // window 3 cool
@@ -424,13 +424,13 @@ suite('render/governor', () => {
     assertEq(isWarned(), false, 'median absorbs a single GC pause / refocus')
   })
 
-  test('the dead band between 18 and 20 ms changes nothing', () => {
+  test('the dead band between 30 and 34 ms changes nothing', () => {
     governorReset()
     state.governorWarned = false
     let t = 0
     sample(t)
-    t = feed(t, 60, 19)
-    t = feed(t, 360, 19)      // four full windows in the dead band
+    t = feed(t, 60, 32)
+    t = feed(t, 360, 32)      // four full windows in the dead band
     assertEq(isWarned(), false, 'dead-band windows never enter WARN')
     state.governorWarned = false
   })
@@ -441,10 +441,10 @@ suite('render/governor', () => {
     let t = 0
     sample(t)
     // 60 warm-up + 89 window samples at a hot pace: window must NOT complete
-    t = feed(t, 149, 30)
-    t = feed(t, 90, 30)       // completes window 1
+    t = feed(t, 149, 40)
+    t = feed(t, 90, 40)       // completes window 1
     assertEq(isWarned(), false, 'still only one completed hot window')
-    t = feed(t, 90, 30)       // window 2
+    t = feed(t, 90, 40)       // window 2
     assertEq(isWarned(), true, 'warms after the second — 60 samples were skipped')
     governorReset()
     state.governorWarned = false

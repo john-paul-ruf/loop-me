@@ -7,9 +7,14 @@
  * copying into a second preallocated buffer and running an in-place
  * quickselect. Per-frame cost is one subtraction and one store.
  *
- * Enter WARN: median > 20 ms across two consecutive windows. Leave: < 18 ms
- * across two. The hysteresis gap keeps a GC pause or tab refocus from
- * flapping the banner. `warmupSkip = 60` on any composition change (FR-15).
+ * Enter WARN: median > 34 ms (≈ under 29 fps) across two consecutive windows.
+ * Leave: < 30 ms (≈ above 33 fps) across two. The hysteresis gap keeps a GC
+ * pause or tab refocus from flapping the banner. 34 ms rather than an exact
+ * 1000/30 keeps a steady two-vsync cadence (30 fps on a 60 Hz display,
+ * median ≈ 33.3 ms) from flapping at the boundary — the FR-15 proposal
+ * (20/18 ms) was vetoed 2026-08-04: the warning must only appear when the
+ * app is genuinely under 30 fps. `warmupSkip = 60` on any composition
+ * change (FR-15).
  *
  * **This module holds no reference to the painter and cannot call into it**
  * (§6.6) — it imports `core/state.js` and nothing else. Warning is a fact
@@ -19,8 +24,8 @@
 import { state, publish, TOPICS } from '../core/state.js'
 
 const WINDOW = 90
-const ENTER_MS = 20
-const LEAVE_MS = 18
+const ENTER_MS = 34
+const LEAVE_MS = 30
 const WARMUP = 60
 const CONSECUTIVE = 2
 

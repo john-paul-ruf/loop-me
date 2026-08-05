@@ -303,11 +303,11 @@
 
 - **User story:** As a builder on a phone, I want to be told when my composition is too heavy, so that I can back off — and I want the art to look the same as it does on a laptop regardless.
 - **Detail:** The engine samples frame intervals over a rolling window and computes a **median**, not a mean, so a single GC pause doesn't trip it.
-- **Detail:** Proposed thresholds (**open to veto**): window of **90 frames**; enter the warning state when the median frame interval exceeds **20 ms** (< 50 fps) across **two consecutive** windows; leave it when the median drops below **18 ms** (> 55 fps) across two consecutive windows. Sampling ignores the first **60 frames** after any composition change, to skip warm-up.
+- **Detail:** Thresholds (original 20 ms / 18 ms proposal **vetoed 2026-08-04** — the warning must not appear unless the app is genuinely under 30 fps): window of **90 frames**; enter the warning state when the median frame interval exceeds **34 ms** (< ~29 fps) across **two consecutive** windows; leave it when the median drops below **30 ms** (> ~33 fps) across two consecutive windows. Sampling ignores the first **60 frames** after any composition change, to skip warm-up.
 - **Detail:** In the warning state: a dismissible banner explains that the composition is heavy on this device, **Add Layer is disabled** with an explanatory tooltip, and Randomize biases toward fewer layers.
 - **Detail:** The governor **never alters rendering**. It does not reduce element counts, drop to 30 fps, lower resolution, or skip layers. Determinism is the product; a seed that renders differently on a slow device is a broken seed.
 - **Acceptance criteria:**
-  - [ ] A deliberately heavy composition trips the warning on a throttled device within ~3 seconds.
+  - [ ] A deliberately heavy composition trips the warning on a throttled device within ~10 seconds.
   - [ ] A single dropped frame or a tab refocus does not trip the warning.
   - [ ] Add Layer is disabled and explained while warned; it re-enables when performance recovers.
   - [ ] Rendered output is identical with the governor warning active and inactive.
