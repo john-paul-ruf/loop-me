@@ -192,8 +192,8 @@ export const SHARE = {
   /** `{duration}` → loop seconds */
   exportButton: 'Export video ({duration}s)',
   /** `{pct}` → 0\u2013100 */
-  exportRecording: 'Recording\u2026 {pct}%',
-  exportHint: 'Saves one full loop \u2014 1080\u00d71920, ready for TikTok or Reels. Recording is realtime: keep this tab visible.',
+  exportRecording: 'Encoding\u2026 {pct}%',
+  exportHint: 'Saves one full loop \u2014 1080\u00d71920, ready for TikTok or Reels. Works in seconds.',
   exportUnsupported: 'Video export isn\u2019t available in this browser.',
 }
 
