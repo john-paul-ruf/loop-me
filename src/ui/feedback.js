@@ -213,7 +213,13 @@ function handleReport(r) {
   // If a banner for this code is already showing, don't stack duplicates.
   if (activeBanners.has(key)) return
 
-  const node = banner(title, body, msg.level, !persistent)
+  // Route the ✕ through the same cleanup as the stored handle's remove(),
+  // so a user dismiss clears the map key and a later report of the same
+  // code produces a fresh banner (was: the key lingered forever, silently
+  // suppressing every future report of that code for the session).
+  const node = banner(title, body, msg.level, !persistent, () => {
+    activeBanners.delete(key)
+  })
   if (!node) return
 
   activeBanners.set(key, {
