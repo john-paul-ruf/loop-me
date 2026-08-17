@@ -1,14 +1,14 @@
 // @ts-check
 /**
  * Pins the two append-only ID spaces: blend modes (7 entries) and layer types
- * (16 as of D4 — the catalog is complete and the literal 1–16 pin below is
- * live, per architecture §5.3 step 3).
+ * (36 across the D4, double-catalog, and glitch-effects waves — the catalog
+ * IDs 1–36 pin below is live, per architecture §5.3 step 3).
  *
  * The earlier layer-type assertions are written as invariants that held at
- * every point of the build; the D4 suite adds the literal pins: exact IDs,
+ * every point of the build; the wave suites append literal pins: exact IDs,
  * names, roles, and the §10.2 worstCase table row by row. Test suites also
  * register synthetic types (IDs ≥ 900 by convention), so the catalog pins
- * filter to id ≤ 16.
+ * filter to id ≤ 36 — the current append-only frontier.
  */
 
 import { suite, test, assert, assertEq, assertThrows } from './harness.js'
@@ -214,11 +214,11 @@ suite('registry — layer type catalog (architecture §5.3, §8.2)', () => {
 
 /** The real catalog, without any suite's synthetic types. */
 function catalog() {
-  return list().filter((m) => m.meta.id <= 34)
+  return list().filter((m) => m.meta.id <= 36)
 }
 
-suite('registry — the 34-type catalog pin (architecture §8.2, FR-6)', () => {
-  test('exactly types 1–34, in ID order, names pinned', () => {
+suite('registry — the 36-type catalog pin (architecture §8.2, FR-6)', () => {
+  test('exactly types 1–36, in ID order, names pinned', () => {
     // Changing a line here silently orphans every seed that stores the ID.
     const NAMES = [
       'Ray Rings', 'Nth Rings', 'Layered Poly', 'Encircled Spiral',
@@ -231,11 +231,11 @@ suite('registry — the 34-type catalog pin (architecture §8.2, FR-6)', () => {
       'Lattice Weave', 'Concentric Waves', 'Triangulation',
       'Light Leak', 'Soft Tint', 'Dot Haze',
       'Stripe Sweep',
-      'Slice Shift', 'RGB Split',
+      'Slice Shift', 'RGB Split', 'Block Static', 'Sync Roll',
     ]
     const cat = catalog()
-    assertEq(cat.length, 34, 'the catalog holds exactly 34 types')
-    for (let i = 0; i < 34; i++) {
+    assertEq(cat.length, 36, 'the catalog holds exactly 36 types')
+    for (let i = 0; i < 36; i++) {
       assertEq(cat[i].meta.id, i + 1, `position ${i} carries ID ${i + 1}`)
       assertEq(cat[i].meta.name, NAMES[i], `ID ${i + 1} name`)
     }
@@ -266,6 +266,8 @@ suite('registry — the 34-type catalog pin (architecture §8.2, FR-6)', () => {
       32: [1, 1],
       33: [24, 25],
       34: [0, 6],
+      35: [0, 32],
+      36: [1, 5],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -291,7 +293,7 @@ suite('registry — the 34-type catalog pin (architecture §8.2, FR-6)', () => {
     // which is exactly why B1 deferred this test until the catalog existed.
     assertThrows(() => register(one), 'duplicate ID must be rejected')
     assertEq(get(1), one, 'the original module is still registered')
-    assertEq(catalog().length, 34, 'catalog unchanged')
+    assertEq(catalog().length, 36, 'catalog unchanged')
   })
 
   test('the reserved statics keys are rejected as param names (D4 scratch injection)', () => {

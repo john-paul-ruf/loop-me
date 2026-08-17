@@ -7,8 +7,12 @@
  * (architecture §4 rule 3) — that restriction is what keeps every other
  * subsystem walking the declaration rather than the catalog.
  *
- * Layer type IDs 1–16 are append-only forever, same rule as algorithm and
- * blend IDs. `tests/registry.test.js` pins the exact ordering.
+ * Layer type IDs 1–36 are append-only forever, same rule as algorithm and
+ * blend IDs. `tests/registry.test.js` pins the exact ordering. Waves so
+ * far: D1 (1), D2 (2–7), D3 (8–12), D4 (13–16), the double-catalog wave
+ * (17–32), the glitch-effects wave (33–36 — role `glitch`, layers that
+ * corrupt the composited frame below rather than draw imagery of their
+ * own; see the layer files for the self-sampling contract).
  */
 
 import { PARAM_KINDS } from './params.js'
@@ -46,6 +50,8 @@ import * as dotHaze from '../layers/dot-haze.js'
 import * as stripeSweep from '../layers/stripe-sweep.js'
 import * as sliceShift from '../layers/slice-shift.js'
 import * as rgbSplit from '../layers/rgb-split.js'
+import * as blockStatic from '../layers/block-static.js'
+import * as syncRoll from '../layers/sync-roll.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -276,3 +282,5 @@ register(dotHaze)
 register(stripeSweep)
 register(sliceShift)
 register(rgbSplit)
+register(blockStatic)
+register(syncRoll)
