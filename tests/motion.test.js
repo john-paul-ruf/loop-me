@@ -2,9 +2,9 @@
 /**
  * FR-11 contract tests for motion characters and algorithm-pool assignment.
  *
- * The critical assertion is that the union of all six pools is exactly the 20
- * algorithm IDs — this is the FR-11 acceptance criterion. Also covers `assign`,
- * `speed`, and `reroll` behaviour.
+ * The critical assertion is that the union of all eight pools is exactly the
+ * 24 algorithm IDs — this is the FR-11 acceptance criterion. Also covers
+ * `assign`, `speed`, and `reroll` behaviour.
  *
  * A synthetic layer module (id 901) is registered so that `motion.assign` can
  * look up params from the registry by `layer.type`. The ID is far outside the
@@ -81,14 +81,14 @@ function makeLayer() {
 // ---------------------------------------------------------------------------
 
 suite('motion — character pools (FR-11)', () => {
-  test('exactly six characters', () => {
-    assertEq(CHARACTER_COUNT, 6, 'FR-11 names six characters')
-    assertEq(CHARACTERS.length, 6)
+  test('exactly eight characters', () => {
+    assertEq(CHARACTER_COUNT, 8, 'FR-11 names eight characters')
+    assertEq(CHARACTERS.length, 8)
   })
 
-  test('names are the pinned six, in order', () => {
+  test('names are the pinned eight, in order', () => {
     const names = CHARACTERS.map((c) => c.name).join('|')
-    assertEq(names, 'Calm|Breathing|Pulse|Tidal|Heartbeat|Chaotic')
+    assertEq(names, 'Calm|Breathing|Pulse|Tidal|Heartbeat|Chaotic|Staccato|Drift')
   })
 
   test('every pool contains only valid algorithm IDs', () => {
@@ -103,9 +103,9 @@ suite('motion — character pools (FR-11)', () => {
     }
   })
 
-  test('the union of all six pools is exactly the 20 algorithm IDs (FR-11 AC)', () => {
+  test('the union of all eight pools is exactly the 24 algorithm IDs (FR-11 AC)', () => {
     // This is the single most important assertion in this suite. FR-11:
-    // "Every one of the 20 algorithms belongs to at least one character pool."
+    // "Every one of the algorithms belongs to at least one character pool."
     assertEq(ALL_POOL_IDS.length, ALGORITHM_COUNT, `union has ${ALL_POOL_IDS.length}, expected ${ALGORITHM_COUNT}`)
     for (let i = 0; i < ALGORITHM_COUNT; i++) {
       assert(ALL_POOL_IDS.includes(i), `algorithm ${i} is missing from every pool`)

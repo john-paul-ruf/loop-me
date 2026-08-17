@@ -3,18 +3,18 @@
  * Motion characters and algorithm-pool assignment (FR-11, architecture §8.4).
  *
  * A **motion character** is a named preset — Calm, Breathing, Pulse, Tidal,
- * Heartbeat, Chaotic — that maps to a curated subset of the 20 algorithms.
- * Selecting a character **deterministically assigns** algorithms from that pool
- * to the layer's animatable parameters, drawing from the layer's PRNG in fixed
- * declaration order (FR-11).
+ * Heartbeat, Chaotic, Staccato, Drift — that maps to a curated subset of the
+ * 24 algorithms. Selecting a character **deterministically assigns** algorithms
+ * from that pool to the layer's animatable parameters, drawing from the
+ * layer's PRNG in fixed declaration order (FR-11).
  *
  * The seed stores only the resolved per-parameter values — never the character
  * name — so a hand-tuned layer and a character-generated layer are
  * indistinguishable to the decoder (FR-11).
  *
- * ## The six pools
+ * ## The eight pools
  *
- * From Designer §6 and architecture §8.4. Every one of the 20 algorithm IDs
+ * From Designer §6 and architecture §8.4. Every one of the 24 algorithm IDs
  * belongs to at least one pool — a test asserts this (FR-11 AC).
  *
  * | Character  | Pool (algorithm IDs) |
@@ -25,6 +25,8 @@
  * | Tidal      | 18, 13, 17, 16       |
  * | Heartbeat  | 12, 6, 8, 7          |
  * | Chaotic    | 14, 19, 8, 13, 11    |
+ * | Staccato   | 20, 23, 10, 12       |
+ * | Drift      | 21, 22, 0, 18        |
  *
  * Pools are **not** append-only — they are not stored in the seed, so they are
  * freely revisable (architecture §8.4). They are frozen at module load for the
@@ -46,7 +48,7 @@ import { get as getLayerModule } from './registry.js'
  */
 
 // ---------------------------------------------------------------------------
-// The six character pools (architecture §8.4, Designer §6)
+// The eight character pools (architecture §8.4, Designer §6)
 // ---------------------------------------------------------------------------
 
 /** @type {readonly number[]} */
@@ -61,9 +63,13 @@ const TIDAL_POOL = Object.freeze([18, 13, 17, 16])
 const HEARTBEAT_POOL = Object.freeze([12, 6, 8, 7])
 /** @type {readonly number[]} */
 const CHAOTIC_POOL = Object.freeze([14, 19, 8, 13, 11])
+/** @type {readonly number[]} */
+const STACCATO_POOL = Object.freeze([20, 23, 10, 12])
+/** @type {readonly number[]} */
+const DRIFT_POOL = Object.freeze([21, 22, 0, 18])
 
 /**
- * The six motion characters and their algorithm pools.
+ * The eight motion characters and their algorithm pools.
  *
  * @typedef {object} CharacterDef
  * @property {string} name
@@ -78,6 +84,8 @@ export const CHARACTERS = Object.freeze([
   Object.freeze({ name: 'Tidal', pool: TIDAL_POOL }),
   Object.freeze({ name: 'Heartbeat', pool: HEARTBEAT_POOL }),
   Object.freeze({ name: 'Chaotic', pool: CHAOTIC_POOL }),
+  Object.freeze({ name: 'Staccato', pool: STACCATO_POOL }),
+  Object.freeze({ name: 'Drift', pool: DRIFT_POOL }),
 ])
 
 /** How many characters exist. @type {number} */
@@ -85,7 +93,7 @@ export const CHARACTER_COUNT = CHARACTERS.length
 
 /**
  * Every algorithm ID across all pools. Asserted by the test suite to be
- * exactly the full set 0..19 (FR-11 AC). Computed once at module load.
+ * exactly the full set 0..23 (FR-11 AC). Computed once at module load.
  *
  * @type {readonly number[]}
  */
