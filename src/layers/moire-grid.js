@@ -19,6 +19,16 @@
  * grid B only — displacing both symmetrically doubles the code for an
  * identical relative offset, and the relative offset is all moiré sees.
  * Consumes zero PRNG draws.
+ *
+ * **per-effect-glow (feature) — widened additive re-stroke of the two
+ * transformed grids.** When `glowStrength > 0`, `draw` re-strokes both grid
+ * passes at `weight × K_GLOW` under `globalCompositeOperation = 'lighter'`
+ * BEFORE the crisp strokes — a soft halo laid along every grid line, crisp
+ * lines drawn on top (halo under mark). FR-6: NO `shadowBlur`; §6.5: zero
+ * per-frame allocation (the prepared `Path2D` is stroked, not rebuilt).
+ * `gs === 0` is a hard no-op → byte-identical to pre-glow. See
+ * `src/util/glow.js` for the canonical draw-time idiom and the
+ * `glowStrength` param convention.
  */
 
 import { A, S } from '../model/params.js'
@@ -29,7 +39,9 @@ export const meta = {
   name: 'Moiré Grid',
   role: 'secondary',
   blurb: 'Twin line grids sliding into shimmering interference.',
-  worstCase: { pathOps: 750, drawCalls: 2 },
+  // Worst case doubles under the glow pass: 2 crisp strokes + 2 halo strokes
+  // of the same prepared Path2D under transforms.
+  worstCase: { pathOps: 1500, drawCalls: 4 },
   fullCanvasOpaque: false,
 }
 
@@ -39,6 +51,10 @@ export const params = [
   A('relativeAngle', 0, 45, { unit: '°', default: { min: 2, max: 14 } }),
   S.int('weight', 1, 4, { default: 1 }),
   A('drift', 0, 120, { default: { min: 0, max: 60 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -46,6 +62,13 @@ const CY = 960
 const DEG = Math.PI / 180
 const DIAG = Math.hypot(1080, 1920)
 const HALF = DIAG / 2
+/**
+ * Halo width multiplier for the glow re-stroke. Matches the S02 stroke-batch
+ * tuning (pulse-rings/etc.): below 2 the halo hides inside the crisp line at
+ * every `weight` bound, above 3 halos of adjacent grid lines merge at the
+ * tightest `spacing = 8` and the moiré interference reads as a wash.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} MoireGridPrepared
@@ -91,6 +114,26 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const rel = /** @type {number} */ (resolved.relativeAngle) * DEG
   const drift = /** @type {number} */ (resolved.drift)
+  const gs = /** @type {number} */ (resolved.glowStrength)
+
+  // Glow pass — drawn FIRST so the crisp grid sits on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip the pass entirely for byte-identical
+  // pre-glow output. Wrapped in save/restore so the crisp pass below starts
+  // from the painter's identity transform. See `src/util/glow.js`.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.strokeStyle = prepared.color
+    ctx.lineWidth = prepared.weight * K_GLOW
+    ctx.translate(CX, CY)
+    ctx.stroke(prepared.path)
+    ctx.rotate(rel)
+    ctx.translate(0, drift)
+    ctx.stroke(prepared.path)
+    ctx.restore()
+  }
 
   ctx.strokeStyle = prepared.color
   ctx.lineWidth = prepared.weight

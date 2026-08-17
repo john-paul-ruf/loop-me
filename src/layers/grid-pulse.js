@@ -26,6 +26,20 @@
  *    2,304-cell field — never blank.
  *
  * Consumes zero PRNG draws.
+ *
+ * **per-effect-glow (feature) — additive re-fill / re-stroke of the same
+ * cells.** When `glowStrength > 0`, `draw` re-accumulates the wave-scaled
+ * rects under `globalCompositeOperation = 'lighter'` BEFORE the crisp pass
+ * — one extra fill (or stroke, when `filled = false`) at additive alpha,
+ * brightening every visible cell without widening it. Keeping the halo AT
+ * the cell (not spilling past it) preserves grid-pulse's role as the base
+ * of the glitch composed sweep (`baseGridPulseSnapshot()` in
+ * `tests/layers.test.js`): its pinned `mid` frame stays a two-tone field
+ * with clear inter-cell gaps at `cellScale = 0.55`, so the composed sweep's
+ * "any pixel differs" and "not monochrome" invariants hold. FR-6: NO
+ * `shadowBlur`; §6.5: zero per-frame allocation. `gs === 0` is a hard no-op
+ * → byte-identical to pre-glow (both the solo output and the sweep base).
+ * See `src/util/glow.js` for the canonical draw-time idiom.
  */
 
 import { A, S } from '../model/params.js'
@@ -36,7 +50,9 @@ export const meta = {
   name: 'Grid Pulse',
   role: 'secondary',
   blurb: 'A field of cells swelling in a travelling wave.',
-  worstCase: { pathOps: 2304, drawCalls: 1 },
+  // Worst case doubles under the glow pass: one extra rect accumulation +
+  // one extra commit (fill in the filled case, stroke in the unfilled case).
+  worstCase: { pathOps: 4608, drawCalls: 2 },
   fullCanvasOpaque: false,
 }
 
@@ -47,6 +63,14 @@ export const params = [
   S.int('waveFreq', 1, 6, { default: 2 }),
   A('cellScale', 0.1, 1.0, { default: { min: 0.35, max: 0.9 } }),
   S.bool('filled', { default: true }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  // This preserves `baseGridPulseSnapshot()`'s solo semantics too — the
+  // glitch composed sweep base at `mid` uses cellScale = 0.55 with the glow
+  // pass ENABLED (glowStrength mid = 0.5), giving a brighter but still
+  // non-monochrome checker (cells at ~74 px on a 135 px spacing).
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -105,11 +129,42 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const theta = /** @type {number} */ (resolved.waveAngle) * DEG
   const scale = /** @type {number} */ (resolved.cellScale)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { cols, rows, size, x0, y0, freq } = prepared
   const c = Math.cos(theta)
   const s = Math.sin(theta)
   // phase per unit of projected distance: waveFreq cycles across the diagonal.
   const k = (TWO_PI * freq) / DIAG
+
+  // Glow pass — drawn FIRST so the crisp cells sit on top (halo under mark).
+  // Same cell geometry, additive re-commit under 'lighter'. `gs === 0` is a
+  // hard no-op → byte-identical to pre-glow. See `src/util/glow.js`.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.beginPath()
+    for (let row = 0; row < rows; row++) {
+      const y = y0 + row * size
+      const dy = (y - CY) * s
+      for (let col = 0; col < cols; col++) {
+        const x = x0 + col * size
+        const phase = ((x - CX) * c + dy) * k
+        const side = size * scale * (0.55 + 0.45 * Math.cos(phase))
+        ctx.rect(x - side / 2, y - side / 2, side, side)
+      }
+    }
+    if (prepared.filled) {
+      ctx.fillStyle = prepared.color
+      ctx.fill()
+    } else {
+      ctx.strokeStyle = prepared.color
+      ctx.lineWidth = STROKE_W
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
 
   ctx.beginPath()
   for (let row = 0; row < rows; row++) {
