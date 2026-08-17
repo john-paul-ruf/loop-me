@@ -514,6 +514,112 @@ suite('seed/codec — toArray/fromArray', () => {
     assertDeepEq(arr[2], ['Dusk', ['FF2E88', '00E5FF'], ['EDE6D8'], ['0E7490']], 'wire form')
     assertDeepEq(fromArray(arr), c, 'round-trip restores # and id')
   })
+
+  // §9.2 extension: hidden bitmask ------------------------------------------
+
+  test('all-visible toArray(c) has length 4 — no mask element (byte-identity)', () => {
+    const c = fixedComposition()
+    const arr = toArray(c)
+    assertEq(arr.length, 4, 'no arr[4] when every layer is visible')
+  })
+
+  test('hiding a layer sets the bit at its wire index; other elements unchanged', () => {
+    const c = fixedComposition()
+    // Add a second visible layer, then hide the FIRST — mask should be 0b01.
+    c.layers.push(/** @type {Layer} */ ({
+      type: 911, blend: 0, rngSeed: 7, color: 'c0',
+      opacity: { min: 0.05, max: 1, times: 1, algorithm: 0 },
+      visible: true,
+      params: {
+        height: { min: 10, max: 900, times: 1, algorithm: 0 },
+        bars: 5,
+      },
+      errored: false,
+    }))
+    c.layers[0].visible = false
+
+    const arr = toArray(c)
+    assertEq(arr.length, 5, 'mask element present')
+    assertEq(arr[4], 0b01, 'bit 0 set for wire layer 0 hidden')
+    // Header + layers untouched
+    assertEq(arr[0], SCHEMA_VERSION)
+    assertEq(arr[1], c.durationId)
+    assertEq(arr[2], c.scheme)
+    const wireLayers = /** @type {unknown[][]} */ (arr[3])
+    assertEq(wireLayers.length, 2)
+  })
+
+  test('round-trip: 3 layers, hide index 1 → visible true/false/true', () => {
+    const c = fixedComposition()
+    // Duplicate the first layer twice so all three are the same known type.
+    const clone1 = /** @type {Layer} */ (structuredClone(c.layers[0]))
+    const clone2 = /** @type {Layer} */ (structuredClone(c.layers[0]))
+    c.layers.push(clone1, clone2)
+    c.layers[1].visible = false
+
+    const back = fromArray(toArray(c))
+    assertEq(back.layers.length, 3)
+    assertEq(back.layers[0].visible, true)
+    assertEq(back.layers[1].visible, false)
+    assertEq(back.layers[2].visible, true)
+  })
+
+  test('legacy 4-element array decodes with every layer visible', () => {
+    // A hand-built array that predates the mask — arr.length === 4.
+    const arr = [SCHEMA_VERSION, 1, 0, [
+      [910, 0, 1, 'c0', [0.05, 1, 1, 0]],
+      [910, 0, 2, 'c1', [0.05, 1, 1, 0]],
+    ]]
+    const back = fromArray(arr)
+    assertEq(back.layers.length, 2)
+    assertEq(back.layers[0].visible, true, 'missing mask ≡ all visible')
+    assertEq(back.layers[1].visible, true)
+  })
+
+  test('malformed mask (string, negative, fractional) decodes as all visible', () => {
+    /** @type {unknown[]} */
+    const base = [SCHEMA_VERSION, 1, 0, [
+      [910, 0, 1, 'c0', [0.05, 1, 1, 0]],
+      [910, 0, 2, 'c1', [0.05, 1, 1, 0]],
+    ]]
+    for (const bad of ['x', -1, 1.5, NaN, null]) {
+      const arr = base.slice()
+      arr.push(bad)
+      const back = fromArray(arr)
+      assertEq(back.layers[0].visible, true, `mask ${String(bad)} → layer 0 visible`)
+      assertEq(back.layers[1].visible, true, `mask ${String(bad)} → layer 1 visible`)
+    }
+  })
+
+  test('decode-side alignment: mask bits track wire indices, not source indices', async () => {
+    // Wire 0 is an unknown type (skipped), wire 1 is known.
+    // Mask 0b10 hides wire 1 → the one kept layer decodes hidden.
+    /** @type {unknown[]} */
+    const arr = [SCHEMA_VERSION, 1, 0, [
+      [99999, 0, 1, 'c0', [0.05, 1, 1, 0]],
+      [910, 0, 1, 'c0', [0.05, 1, 1, 0]],
+    ], 0b10]
+    /** @type {Composition | null} */
+    let back = null
+    await captureReports(() => { back = fromArray(arr) })
+    assert(back !== null)
+    const b = /** @type {Composition} */ (back)
+    assertEq(b.layers.length, 1, 'unknown skipped')
+    assertEq(b.layers[0].type, 910)
+    assertEq(b.layers[0].visible, false, 'wire-1 bit hides the kept layer')
+  })
+
+  test('async encode/decode round-trip with a hidden layer (mask survives deflate)', async () => {
+    const c = fixedComposition()
+    const clone1 = /** @type {Layer} */ (structuredClone(c.layers[0]))
+    c.layers.push(clone1)
+    c.layers[1].visible = false
+    const seed = await encode(c)
+    const back = await decode(seed)
+    assertEq(back.layers[0].visible, true)
+    assertEq(back.layers[1].visible, false)
+    assertDeepEq(back, c, 'full round-trip with mask')
+  })
 })
 
 // ---------------------------------------------------------------------------

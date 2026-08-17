@@ -8,6 +8,12 @@
  * each layer type's param declarations (§5.2), so the codec never hard-codes
  * a layer's shape.
  *
+ * §9.2 extension — the top-level array has an optional fifth element
+ * `arr[4]`: an integer hidden-layer bitmask, bit *w* set = wire layer *w* is
+ * hidden. Emitted only when non-zero, so an all-visible composition encodes
+ * byte-identically to a pre-visibility build (§9.5 forward-tolerance rule).
+ * Old builds read indices 0–3 and ignore it; missing/malformed decodes as 0.
+ *
  * Forward tolerance (§9.5) is split across two modules on purpose:
  *   - *structure* tolerance lives here (unknown trailing elements ignored,
  *     missing trailing filled, unknown layer type skipped with a warning,
@@ -109,12 +115,16 @@ export function toArray(c) {
 
   /** @type {unknown[]} */
   const layers = []
+  let hiddenMask = 0
   for (const layer of c.layers) {
     const mod = getLayer(layer.type)
     if (mod === null) {
       report(LAYER_UNKNOWN_TYPE, { typeId: layer.type, at: 'encode' })
       continue
     }
+    // Mask against the EMITTED wire index — an unknown-type layer is skipped
+    // above, and its bit must be skipped with it (§9.2 extension).
+    if (layer.visible === false) hiddenMask |= (1 << layers.length)
     /** @type {unknown[]} */
     const wire = [layer.type, layer.blend, layer.rngSeed, layer.color, animToWire(layer.opacity)]
     for (const decl of mod.params) {
@@ -130,7 +140,13 @@ export function toArray(c) {
     layers.push(wire)
   }
 
-  return qArray([SCHEMA_VERSION, c.durationId, schemeWire, layers])
+  /** @type {unknown[]} */
+  const out = [SCHEMA_VERSION, c.durationId, schemeWire, layers]
+  // §9.2 extension: hidden-layer bitmask emitted only when non-zero so an
+  // all-visible composition encodes byte-identically to a pre-visibility
+  // build. Old builds read indices 0–3 and ignore this (§9.5).
+  if (hiddenMask !== 0) out.push(hiddenMask)
+  return qArray(out)
 }
 
 // ---------------------------------------------------------------------------
@@ -201,9 +217,18 @@ export function fromArray(arr) {
     throw new AppError(SEED_TRUNCATED, 'seed carries no layers')
   }
 
+  // §9.2 extension: optional arr[4] = hidden-layer bitmask, bit w = wire
+  // layer w. Absent or malformed decodes as 0 (all visible) — the §9.5
+  // failure direction (renders the author's full art).
+  const rawMask = arr[4]
+  const hiddenMask = typeof rawMask === 'number' && Number.isInteger(rawMask) && rawMask > 0
+    ? rawMask
+    : 0
+
   /** @type {Layer[]} */
   const layers = []
-  for (const entry of rawLayers) {
+  for (let w = 0; w < rawLayers.length; w++) {
+    const entry = rawLayers[w]
     if (!Array.isArray(entry)) continue // structural noise — nothing to salvage
 
     const typeId = entry[0]
@@ -237,6 +262,7 @@ export function fromArray(arr) {
       rngSeed: entry[2],
       color: entry[3],
       opacity: wireToAnim(entry[4]),
+      visible: (hiddenMask & (1 << w)) === 0,
       params,
     }))
   }
