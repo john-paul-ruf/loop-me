@@ -37,6 +37,7 @@ import {
 } from '../src/core/errors.js'
 import { register, has } from '../src/model/registry.js'
 import { A, S } from '../src/model/params.js'
+import { BUILTINS } from '../src/model/schemes.js'
 import { mulberry32, uint32, intRange, pick } from '../src/core/rng.js'
 import { q3 } from '../src/util/quantize.js'
 import { clamp } from '../src/util/clamp.js'
@@ -484,7 +485,7 @@ suite('seed/codec — toArray/fromArray', () => {
   test('out-of-range built-in scheme index clamps to the last built-in', () => {
     const arr = toArray(fixedComposition())
     arr[2] = 99
-    assertEq(fromArray(arr).scheme, 3)
+    assertEq(fromArray(arr).scheme, BUILTINS.length - 1)
   })
 
   test('out-of-range durationId clamps', () => {

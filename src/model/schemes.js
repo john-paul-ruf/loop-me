@@ -3,8 +3,9 @@
  * Colour schemes and scheme-reference resolution (FR-7, architecture §9.2).
  *
  * A scheme is a named palette split into three buckets — **colour**, **neutral**,
- * **background** — each holding 1–8 hex colours. Four ship built-in (FR-7);
- * users can author custom ones that travel embedded inside a seed (FR-8).
+ * **background** — each holding 1–8 hex colours. Eight ship built-in (FR-7,
+ * grown from four by omni-wave S05); users can author custom ones that travel
+ * embedded inside a seed (FR-8).
  *
  * A layer's `color` field is a **scheme reference**: either a bucket letter
  * plus a selector (`"c3"` → `colours[3 % colours.length]`), or a pinned 6-char
@@ -77,18 +78,66 @@ const BONE_AND_INK = Object.freeze({
   backgrounds: Object.freeze(['#0E0D0C', '#EDE6D8']),
 })
 
+// omni-wave S05 — four appended built-ins (4–7). Append-only: existing indices
+// 0–3 unchanged, so pre-omni seeds carrying scheme 0–3 render pixel-identical.
+// Inner Object.freeze wrapper cast to Scheme so readonly bucket arrays satisfy
+// the mutable-string[] slots in the typedef without adding NEW typecheck errors
+// (the 5 pre-existing TS2322 hits on NEON_NIGHT..BONE_AND_INK + normalizeScheme
+// are the baseline; append-only schemes must not grow that count).
+
+const VAPORWAVE = /** @type {Scheme} */ (Object.freeze({
+  id: 'builtin-4',
+  name: 'Vaporwave',
+  colors: Object.freeze(['#FF71CE', '#01CDFE', '#05FFA1', '#B967FF', '#FFFB96']),
+  neutrals: Object.freeze(['#F8F8FF', '#9BA0C0', '#2E2A4A']),
+  backgrounds: Object.freeze(['#170F2E', '#0D0A1E']),
+}))
+
+const CRT_PHOSPHOR = /** @type {Scheme} */ (Object.freeze({
+  id: 'builtin-5',
+  name: 'CRT Phosphor',
+  colors: Object.freeze(['#33FF66', '#A8FF60', '#FFB000', '#00D8FF']),
+  neutrals: Object.freeze(['#D8FFE0', '#6FA07C', '#16301E']),
+  backgrounds: Object.freeze(['#020A04', '#061206']),
+}))
+
+const RISO_PRINT = /** @type {Scheme} */ (Object.freeze({
+  id: 'builtin-6',
+  name: 'Riso Print',
+  colors: Object.freeze(['#FF48B0', '#0078BF', '#FF6C2F', '#FFE800', '#00A95C']),
+  neutrals: Object.freeze(['#FFF9F0', '#C7BEB2', '#3A3633']),
+  backgrounds: Object.freeze(['#F4EFE6', '#EDE4D4']),
+}))
+
+const INFRARED = /** @type {Scheme} */ (Object.freeze({
+  id: 'builtin-7',
+  name: 'Infrared',
+  colors: Object.freeze(['#3D0F5E', '#B3005E', '#FF3D00', '#FF9E00', '#FFE28A']),
+  neutrals: Object.freeze(['#FFF3E0', '#A88C9E', '#2B1B33']),
+  backgrounds: Object.freeze(['#0C0514', '#180A26']),
+}))
+
 /**
- * The four built-in schemes, in the exact order FR-7 lists them.
+ * The eight built-in schemes, in the exact order FR-7 lists them (extended by
+ * omni-wave S05 with builtin-4…builtin-7).
  *
- * A composition's `scheme` field stores either an index into this array (0–3)
+ * A composition's `scheme` field stores either an index into this array (0–7)
  * or a full embedded `Scheme` object for a custom palette (FR-8). The index is
  * what the seed carries for built-ins; it is **not** an append-only ID — adding
- * a fifth built-in is a schema-visible change but does not break old seeds,
+ * a ninth built-in is a schema-visible change but does not break old seeds,
  * because an out-of-range index clamps to the last available built-in (FR-18).
+ *
+ * Riso Print (builtin-6) is the first light-background built-in — its papers
+ * are legible against the app chrome, but consumers rendering role dots or
+ * splash text over the raw scheme background must use one of its neutrals for
+ * ink, not assume a dark backdrop.
  *
  * @type {readonly Scheme[]}
  */
-export const BUILTINS = Object.freeze([NEON_NIGHT, SOLAR_FLARE, DEEP_SEA, BONE_AND_INK])
+export const BUILTINS = Object.freeze([
+  NEON_NIGHT, SOLAR_FLARE, DEEP_SEA, BONE_AND_INK,
+  VAPORWAVE, CRT_PHOSPHOR, RISO_PRINT, INFRARED,
+])
 
 // ---------------------------------------------------------------------------
 // Colour-ref parsing

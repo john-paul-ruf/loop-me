@@ -111,11 +111,25 @@ suite('randomize — validity (FR-9)', () => {
   })
 
   test('every generate() has a valid built-in scheme', () => {
+    // omni-wave S05: length-derived range so future BUILTINS appends need no pin bump.
     for (let i = 0; i < 100; i++) {
       const c = generate()
-      assert(typeof c.scheme === 'number' && c.scheme >= 0 && c.scheme <= 3,
-        `scheme ${c.scheme} out of range`)
+      assert(typeof c.scheme === 'number' && c.scheme >= 0 && c.scheme < BUILTINS.length,
+        `scheme ${c.scheme} out of range [0, ${BUILTINS.length})`)
     }
+  })
+
+  test('generate() spreads across every built-in scheme in 200 runs', () => {
+    // Distribution smoke — proves generate() actually samples the full BUILTINS
+    // range, not a stale hardcoded subset. 200 runs against 8 built-ins with a
+    // uniform draw is astronomically unlikely to miss any bucket; a bug that
+    // hardcoded the pick range would leave visible gaps here.
+    const seen = new Set()
+    for (let i = 0; i < 200; i++) {
+      seen.add(generate().scheme)
+    }
+    assert(seen.size === BUILTINS.length,
+      `expected all ${BUILTINS.length} built-ins to appear in 200 runs; saw ${seen.size} (${[...seen].sort((a,b)=>a-b).join(',')})`)
   })
 
   test('every layer has a registered type', () => {

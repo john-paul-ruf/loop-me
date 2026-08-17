@@ -328,8 +328,8 @@ suite('composition — validate', () => {
 })
 
 suite('schemes — built-ins and resolution (FR-7)', () => {
-  test('four built-in schemes with non-empty buckets', () => {
-    assertEq(BUILTINS.length, 4, 'FR-7: four built-ins')
+  test('eight built-in schemes with non-empty buckets', () => {
+    assertEq(BUILTINS.length, 8, 'FR-7: eight built-ins as of omni-wave S05')
     for (const s of BUILTINS) {
       assert(s.colors.length >= 1, `${s.name}: colours non-empty`)
       assert(s.neutrals.length >= 1, `${s.name}: neutrals non-empty`)
@@ -342,6 +342,10 @@ suite('schemes — built-ins and resolution (FR-7)', () => {
     assertEq(BUILTINS[1].name, 'Solar Flare')
     assertEq(BUILTINS[2].name, 'Deep Sea')
     assertEq(BUILTINS[3].name, 'Bone & Ink')
+    assertEq(BUILTINS[4].name, 'Vaporwave')
+    assertEq(BUILTINS[5].name, 'CRT Phosphor')
+    assertEq(BUILTINS[6].name, 'Riso Print')
+    assertEq(BUILTINS[7].name, 'Infrared')
   })
 
   test('resolveRef picks the right bucket entry by selector % length', () => {
