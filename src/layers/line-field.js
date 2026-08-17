@@ -15,6 +15,14 @@
  * the canvas's minimum half-extent at every angle.
  *
  * Consumes zero PRNG draws.
+ *
+ * **per-effect-glow (S04):** wide additive re-stroke archetype. When
+ * `glowStrength > 0`, `draw` re-runs the line loop once BEFORE the crisp
+ * pass under `globalCompositeOperation = 'lighter'` at `lineWidth × K_GLOW`
+ * — a soft halo under the field, crisp lines on top. No `shadowBlur` (FR-6);
+ * `gs === 0` is a hard no-op → pre-glow seeds decode byte-identical (§9.5).
+ * K = 2.0 keeps the halo readable without bleeding into neighbouring lines
+ * at `lineCount.max = 80`.
  */
 
 import { A, S } from '../model/params.js'
@@ -25,7 +33,9 @@ export const meta = {
   name: 'Line Field',
   role: 'secondary',
   blurb: 'Parallel lines sweeping the frame in unison.',
-  worstCase: { pathOps: 80, drawCalls: 1 },
+  // Worst case doubles under the glow pass: 1 halo stroke + 1 crisp stroke,
+  // halo path is the same shape as the crisp path.
+  worstCase: { pathOps: 160, drawCalls: 2 },
   fullCanvasOpaque: false,
 }
 
@@ -35,6 +45,10 @@ export const params = [
   A('angle', 0, 180, { unit: '°', wrap: true }),
   A('weight', 1, 20, { default: { min: 2, max: 6 } }),
   A('offset', 0, 200, { default: { min: 0, max: 80 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -43,6 +57,12 @@ const DEG = Math.PI / 180
 /** Canvas diagonal — a line this long through centre covers any rotation. */
 const DIAG = Math.hypot(1080, 1920)
 const HALF = DIAG / 2
+/**
+ * Halo width multiplier. `lineCount.max = 80` gives 80 lines per frame at
+ * spacing = DIAG/80 ≈ 27.6 px; K = 2.0 doubles the mark to a soft halo that
+ * stays clearly beneath each line rather than merging neighbours together.
+ */
+const K_GLOW = 2.0
 
 /**
  * @typedef {object} LineFieldPrepared
@@ -78,11 +98,34 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const angle = /** @type {number} */ (resolved.angle) * DEG
   const off = /** @type {number} */ (resolved.offset)
+  const weight = /** @type {number} */ (resolved.weight)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { count, spacing } = prepared
   const y0 = off - ((count - 1) / 2) * spacing
 
+  ctx.strokeStyle = prepared.color
   ctx.translate(CX, CY)
   ctx.rotate(angle)
+
+  // Glow pass — drawn FIRST so the crisp lines sit on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip the pass entirely for byte-identical
+  // pre-glow output. See `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.lineWidth = weight * K_GLOW
+    ctx.beginPath()
+    for (let i = 0; i < count; i++) {
+      const y = y0 + i * spacing
+      ctx.moveTo(-HALF, y)
+      ctx.lineTo(HALF, y)
+    }
+    ctx.stroke()
+    ctx.restore()
+    // `strokeStyle` and transform survive `restore()` — set before save.
+  }
 
   ctx.beginPath()
   for (let i = 0; i < count; i++) {
@@ -90,7 +133,6 @@ export function draw(ctx, resolved, prepared, palette) {
     ctx.moveTo(-HALF, y)
     ctx.lineTo(HALF, y)
   }
-  ctx.strokeStyle = prepared.color
-  ctx.lineWidth = /** @type {number} */ (resolved.weight)
+  ctx.lineWidth = weight
   ctx.stroke()
 }

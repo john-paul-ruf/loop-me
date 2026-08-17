@@ -28,6 +28,16 @@
  * stroke visibly. `cell.min = 72` → ~480 cells × 7 pathops = ~3360 across
  * the six buckets, matching the §10.2 pin.
  *
+ * **per-effect-glow (S04):** wide additive re-stroke archetype. When
+ * `glowStrength > 0`, `draw` re-runs the six-bucket alpha-modulated loop
+ * once BEFORE the crisp pass under `globalCompositeOperation = 'lighter'`
+ * at `lineWidth × K_GLOW` — a soft halo under the pulsing hex mesh, crisp
+ * outlines on top. Re-running the bucketed loop preserves the travelling-
+ * wave modulation in the halo (uniform-alpha halo behind a pulsing mesh
+ * would read as a static wash under a moving wave). No `shadowBlur` (FR-6);
+ * `gs === 0` is a hard no-op → pre-glow seeds decode byte-identical (§9.5).
+ * K = 2.0 keeps the halo modest against the 480+ cell budget.
+ *
  * Imports `model/params.js` only (§4 rule 2).
  */
 
@@ -39,7 +49,10 @@ export const meta = {
   name: 'Hex Lattice',
   role: 'secondary',
   blurb: 'A hexagonal grid pulsing outward from centre.',
-  worstCase: { pathOps: 2900, drawCalls: 6 },
+  // Worst case doubles under the glow pass: 6 halo bucket strokes + 6 crisp
+  // bucket strokes; each halo bucket path is the same shape as its crisp
+  // counterpart.
+  worstCase: { pathOps: 5800, drawCalls: 12 },
   fullCanvasOpaque: false,
 }
 
@@ -51,6 +64,10 @@ export const params = [
   // glow.min > 0: at 0 every bucket composites at zero alpha — a null
   // figure. 0.15 keeps at least the top crest bucket visibly stroked.
   A('glow', 0.15, 1, { default: { min: 0.35, max: 0.85 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -67,6 +84,15 @@ const WAVE_FREQ = 3
 const MAX_DIST = Math.hypot(W, H) / 2
 /** Radians per pixel of distance so `WAVE_FREQ` full cycles fit across MAX_DIST. */
 const K = (TWO_PI * WAVE_FREQ) / MAX_DIST
+/** Base outline width; the halo re-stroke uses `LINE_W × K_GLOW`. */
+const LINE_W = 2
+/**
+ * Halo width multiplier. ~480 cells at cell.min = 72; a wider halo would
+ * flood the small gaps between neighbouring cell outlines. K = 2.0 keeps
+ * the halo (4 px) clearly wider than the crisp outline (2 px) while
+ * preserving cell separation across the mesh.
+ */
+const K_GLOW = 2.0
 
 /**
  * @typedef {object} HexLatticePrepared
@@ -150,14 +176,43 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const phaseRad = /** @type {number} */ (resolved.phase) * DEG
   const glow = /** @type {number} */ (resolved.glow)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { cellCount, cellCX, cellCY, cellDist, vertX, vertY } = prepared
 
   ctx.strokeStyle = prepared.color
-  ctx.lineWidth = 2
+  ctx.lineWidth = LINE_W
   ctx.lineJoin = 'round'
 
   // Painter's per-layer save/restore restores globalAlpha (§6.4).
   const envelope = ctx.globalAlpha
+
+  // Glow pass — six bucket loops drawn FIRST so the crisp mesh sits on top
+  // (halo under mark). Re-running the bucketed loop preserves the travelling-
+  // wave modulation in the halo. `gs === 0` is a hard no-op: skip entirely
+  // for byte-identical pre-glow output.
+  if (gs > 0) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.lineWidth = LINE_W * K_GLOW
+    for (let b = 0; b < NB; b++) {
+      ctx.beginPath()
+      for (let i = 0; i < cellCount; i++) {
+        const raw = 0.5 + 0.5 * Math.cos(cellDist[i] * K - phaseRad)
+        const bucket = raw >= 1 ? NB - 1 : Math.floor(raw * NB)
+        if (bucket !== b) continue
+        const cx = cellCX[i]
+        const cy = cellCY[i]
+        ctx.moveTo(cx + vertX[0], cy + vertY[0])
+        for (let v = 1; v < 6; v++) ctx.lineTo(cx + vertX[v], cy + vertY[v])
+        ctx.closePath()
+      }
+      ctx.globalAlpha = envelope * glow * ((b + 0.5) / NB) * gs
+      ctx.stroke()
+    }
+    ctx.restore()
+    // `strokeStyle`, `lineJoin`, `lineWidth = LINE_W`, and envelope alpha
+    // all restore to their pre-save values.
+  }
 
   // Six passes over the cell table — each pass strokes the cells whose
   // quantized wave amplitude lands in its bucket. Bucket 0 is the trough
