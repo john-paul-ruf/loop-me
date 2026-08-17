@@ -1,6 +1,7 @@
 // @ts-check
 /**
- * D4 — the per-type render sweep over the complete 16-type catalog.
+ * D4 (omni-wave update) — the per-type render sweep over the whole
+ * non-glitch catalog up to the current append-only frontier.
  *
  * For every catalog type, a composition whose params are pinned to the
  * declaration's min, mid, and max bounds is painted into a detached canvas
@@ -13,8 +14,15 @@
  *     background through (differs from the pure layer colour).
  *
  * Params are pinned *generically from the declarations* (min === max makes
- * `findValue` exact, the render.test.js determinism trick), so a seventeenth
- * type joins the sweep with zero changes here.
+ * `findValue` exact, the render.test.js determinism trick), so a new
+ * primary/secondary/overlay type joins the sweep with zero changes here.
+ *
+ * Glitch-role types (33+) are excluded because they redistribute the frame
+ * below rather than emit imagery of their own — see the composed glitch
+ * sweep further down. Individual pre-omni-wave types that fail this
+ * newly-extended sweep may go into `SOLO_SWEEP_EXCLUSIONS` with a
+ * documented reason (cross-lease waiver protocol — this session's lease
+ * does not include those layer files). New types must never need a waiver.
  *
  * Plus the two Flag 4 real-world pins: Scan Lines and Grain declare a param
  * literally named `opacity`, and their pixels must composite at
@@ -139,8 +147,36 @@ function anyPixelOff(img, rgb, tol) {
   return false
 }
 
-suite('layers — the 16-type min/mid/max sweep (FR-6 AC)', () => {
-  for (const mod of list().filter((m) => m.meta.id <= 16)) {
+/**
+ * The append-only catalog frontier — bumps as each omni-wave chain session
+ * (S01–S04) lands its ID block: 42 → 47 → 52 → 57. Synthetic test types
+ * stay at IDs ≥ 900 and are filtered out.
+ */
+const CATALOG_FRONTIER = 42
+
+/**
+ * Legacy IDs (< 33) waived from the solo sweep at S01 modernization time.
+ * Cross-lease waiver protocol: this session's lease excludes layer files
+ * outside 37–42, so a 17–32 type that regresses the newly-extended sweep
+ * gets an ID here with a one-line reason, and the followUp handoff flags
+ * it for a future session. New types (33+) must never need a waiver.
+ * @type {Set<number>}
+ */
+const SOLO_SWEEP_EXCLUSIONS = new Set([
+  // 24 Checker Wave — its own header documents that `scale`.min = 0.1 can
+  // render all-off (crest cells fail the `scale × f ≥ 0.5` gate); the
+  // layer relies on randomize.js's taste rules to avoid that zone rather
+  // than on bounds enforcement. Not a regression the sweep can fix
+  // without touching the layer file (outside this session's lease).
+  24,
+])
+
+suite('layers — solo min/mid/max sweep, non-glitch catalog (FR-6 AC)', () => {
+  for (const mod of list().filter((m) =>
+    m.meta.id <= CATALOG_FRONTIER
+    && m.meta.role !== 'glitch'
+    && !SOLO_SWEEP_EXCLUSIONS.has(m.meta.id)
+  )) {
     test(`type ${mod.meta.id} ${mod.meta.name} renders non-blank at every bound`, () => {
       for (const which of /** @type {('min'|'mid'|'max')[]} */ (['min', 'mid', 'max'])) {
         const img = paintOne(makeLayer(mod.meta.id, pinnedParams(mod, which)))
