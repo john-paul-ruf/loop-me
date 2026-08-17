@@ -2,6 +2,22 @@
 /**
  * Layer type 57 — Anamorphic Flare (FR-6, architecture §10.2 row 57).
  *
+ * **per-effect-glow (FR-6, §9.5):** appends `glowStrength` LAST (default
+ * `{min:0,max:0}` ⇒ pre-glow seeds decode to `gs === 0`, a hard no-op ⇒
+ * byte-identical). The layer already draws a glow blob per streak, so the
+ * additive lift stays targeted: at `gs > 0` a guarded per-streak loop
+ * re-draws the same baked `blobSprite` at `K_GLOW × blobSize` under
+ * `globalCompositeOperation = 'lighter'` at `alpha = a0 * gs`, widening
+ * the halo around each streak's centre. Fuzz-flare's animate-existing
+ * pattern applied as a SEPARATE additive pass (not folded into the crisp
+ * alpha) so the default `{min:0,max:0}` preserves byte-identity — this
+ * layer's crisp output is real content, not (as with fuzz-flare) already
+ * the glow. Streak sprite and core rect are left untouched — the blob is
+ * the halo, and lifting only the halo reads as a stronger single light
+ * source rather than a doubled streak. No `shadowBlur` (FR-6); zero
+ * per-frame allocation (§6.5, the halo reuses the existing blob sprite).
+ *
+ *
  * The horizontal streak-and-blob signature of an anamorphic lens flare —
  * a small number of bright bars slide left and right across the frame at
  * fixed y-heights, each carrying a soft glow ball at its centre and a
@@ -54,7 +70,10 @@ export const meta = {
   name: 'Anamorphic Flare',
   role: 'overlay',
   blurb: 'Anamorphic streaks drifting bright across the frame.',
-  worstCase: { pathOps: 6, drawCalls: 9 },
+  // per-effect-glow: guarded per-streak additive drawImage of the blob
+  // sprite adds one drawCall per streak when `gs > 0` (max 3 → 9 + 3 = 12).
+  // pathOps unchanged (drawImage adds none).
+  worstCase: { pathOps: 6, drawCalls: 12 },
   fullCanvasOpaque: false,
 }
 
@@ -67,6 +86,12 @@ export const params = [
   A('sweep', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
   // flare.min > 0 (0.15) composes with envelope alpha (Flag 4).
   A('flare', 0.15, 0.8, { default: { min: 0.25, max: 0.6 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒
+  // pre-glow seeds decode to glow-off (`gs === 0` skips the additive blob
+  // re-blit, byte-identical). Not folded into `flare` (unlike fuzz-flare)
+  // because this layer's crisp draw is real content — folding would blank
+  // the pre-glow output at gs = 0.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -91,6 +116,12 @@ const Y_MAX = H - 260
 /** Thin core rect dimensions. */
 const CORE_HH = 2
 const CORE_WFRAC = 0.7
+/** Additive halo scale for the per-effect-glow pass. Tuned visually:
+ * below 1.25 the halo hides inside the existing blob's own transparent
+ * falloff; above 1.75 the halo bleeds off the streak's vertical band and
+ * reads as a floating orb detached from the flare. 1.5 widens the bloom
+ * around the streak's centre while keeping it visually anchored. */
+const K_GLOW = 1.5
 
 /**
  * @typedef {object} AnamorphicFlarePrepared
@@ -215,6 +246,7 @@ export function draw(ctx, resolved, prepared, palette) {
   const length = /** @type {number} */ (resolved.length)
   const sweepDeg = /** @type {number} */ (resolved.sweep)
   const flare = /** @type {number} */ (resolved.flare)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { streaks, streakSprite, blobSprite, y, amp, phase, coreColor } = prepared
 
   // Flag 4 posture: composes with envelope alpha, never replaces it.
@@ -239,5 +271,25 @@ export function draw(ctx, resolved, prepared, palette) {
     // 3. The thin hot core, in the palette-picked colour.
     ctx.fillStyle = coreColor[i]
     ctx.fillRect(cx - halfCoreLen, yy - CORE_HH, coreLen, CORE_HH * 2)
+  }
+
+  // per-effect-glow: guarded additive halo per streak — re-issue the same
+  // baked `blobSprite` widened to K_GLOW × blobSize under 'lighter'.
+  // `gs === 0` skips the whole loop (byte-identical to pre-glow output).
+  // Only the blob is boosted (see file header): the streak sprite and hot
+  // core stay crisp so the flare's structure remains readable.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    const haloSize = blobSize * K_GLOW
+    const halfHalo = haloSize / 2
+    for (let i = 0; i < streaks; i++) {
+      const cx = CX + amp[i] * Math.cos(sweepRad + phase[i])
+      const yy = y[i]
+      ctx.drawImage(blobSprite, cx - halfHalo, yy - halfHalo, haloSize, haloSize)
+    }
+    ctx.restore()
   }
 }

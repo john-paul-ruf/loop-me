@@ -2,6 +2,18 @@
 /**
  * Layer type 55 — Aurora Veil (FR-6, architecture §10.2 row 55).
  *
+ * **per-effect-glow (FR-6, §9.5):** appends `glowStrength` LAST (default
+ * `{min:0,max:0}` ⇒ pre-glow seeds decode to `gs === 0`, a hard no-op ⇒
+ * byte-identical). At `gs > 0` each ribbon's built path is fill()'d a
+ * second time under `globalCompositeOperation = 'lighter'` at
+ * `alpha = a0 * gs` — additive bloom along the veil bands in the ribbon's
+ * own cached gradient. Path is REUSED between crisp and additive fills
+ * (canvas paths persist until `beginPath`), so `pathOps` is unchanged;
+ * only `drawCalls` doubles (one extra fill per ribbon). No `shadowBlur`
+ * (FR-6); zero per-frame allocation (§6.5, the halo reuses the ribbon's
+ * existing gradient).
+ *
+ *
  * A small stack of vertical curved ribbons drifting sideways — the aurora
  * borealis idea, translated into a lightweight overlay. Each ribbon is a
  * closed quad-strip of `SAMPLES` vertices on each edge, whose centreline
@@ -49,7 +61,9 @@ export const meta = {
   name: 'Aurora Veil',
   role: 'overlay',
   blurb: 'Slow luminous ribbons drifting across the frame.',
-  worstCase: { pathOps: 110, drawCalls: 4 },
+  // per-effect-glow: guarded additive re-fill per ribbon reuses the same
+  // path — pathOps unchanged, drawCalls double (4 → 8) when `gs > 0`.
+  worstCase: { pathOps: 110, drawCalls: 8 },
   fullCanvasOpaque: false,
 }
 
@@ -60,6 +74,10 @@ export const params = [
   A('sway', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
   // lumen.min > 0 (0.1) composes with envelope alpha (Flag 4).
   A('lumen', 0.1, 0.5, { default: { min: 0.18, max: 0.4 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒
+  // pre-glow seeds decode to glow-off (`gs === 0` skips the additive
+  // re-fill inside every ribbon iteration, byte-identical).
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -181,6 +199,7 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const swayDeg = /** @type {number} */ (resolved.sway)
   const lumen = /** @type {number} */ (resolved.lumen)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { ribbons, anchorX, halfW, amp, phase, freq, grads } = prepared
 
   // Flag 4 posture: composes with envelope alpha, never replaces it.
@@ -213,5 +232,19 @@ export function draw(ctx, resolved, prepared, palette) {
     ctx.closePath()
     ctx.fillStyle = grads[r]
     ctx.fill()
+
+    // per-effect-glow: additive bloom along this veil band — re-fill the
+    // SAME path (canvas paths persist until `beginPath`, so no rebuild)
+    // with the same gradient under 'lighter'. `gs === 0` skips the pass
+    // entirely (byte-identical to pre-glow). Save captures blend + alpha;
+    // restore returns them for the next ribbon iteration.
+    if (gs > 0) {
+      const a0 = ctx.globalAlpha
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.globalAlpha = a0 * gs
+      ctx.fill()
+      ctx.restore()
+    }
   }
 }
