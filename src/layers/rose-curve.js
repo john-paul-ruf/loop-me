@@ -23,6 +23,17 @@
  * downstream frame count — FR-4.
  *
  * Imports `model/params.js` only (§4 rule 2).
+ *
+ * **per-effect-glow (feature per-effect-glow, FR-6 additive AC).** When
+ * `glowStrength > 0`, `draw` re-runs BOTH polylines (main + echo) once
+ * BEFORE the crisp strokes under `globalCompositeOperation = 'lighter'` at
+ * `lineWidth × K_GLOW` — wide-additive-re-stroke archetype (see
+ * `src/util/glow.js`). The halo traces the SAME 720-sample table over the
+ * same θ ∈ [0, 2π], so it closes at the same wrap point as the crisp curve —
+ * no seam at the loop boundary. The echo halo mirrors the crisp 0.5×
+ * alpha factor. No `shadowBlur` (FR-6). `glowStrength` is appended LAST
+ * with default `{min:0,max:0}` (§9.2/§9.5): pre-glow seeds decode to
+ * `gs === 0`, which is a hard no-op → byte-identical render.
  */
 
 import { A } from '../model/params.js'
@@ -33,7 +44,9 @@ export const meta = {
   name: 'Rose Curve',
   role: 'primary',
   blurb: 'A polar rose blooming and spinning, with a concentric echo.',
-  worstCase: { pathOps: 1450, drawCalls: 2 },
+  // Worst case doubles under the glow pass: 2 curves built twice (2900
+  // pathOps), 4 strokes total (2 halo + 2 crisp).
+  worstCase: { pathOps: 2900, drawCalls: 4 },
   fullCanvasOpaque: false,
 }
 
@@ -43,6 +56,10 @@ export const params = [
   // the FR-6 "renders nothing" AC failure mode designed out at declaration.
   A('bloom', 0.25, 1, { default: { min: 0.4, max: 0.9 } }),
   A('spin', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -56,6 +73,12 @@ const N = 720
 const K_MIN = 2
 const K_MAX = 9
 const ECHO_SCALE = 0.6
+/**
+ * Halo width multiplier for the glow re-stroke. 2.5 mirrors `pulse-rings.js`
+ * — clearly wider than the crisp `lineWidth = 2` (halo = 5 px) so the halo
+ * reads as a distinct outer bloom without swallowing petal detail.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} RoseCurvePrepared
@@ -100,15 +123,53 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const bloom = /** @type {number} */ (resolved.bloom)
   const spin = /** @type {number} */ (resolved.spin) * DEG
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { rFactor, cosTheta, sinTheta } = prepared
   const scale = MAX_R * bloom
+  const inner = scale * ECHO_SCALE
 
   ctx.translate(CX, CY)
   ctx.rotate(spin)
   ctx.strokeStyle = prepared.color
-  ctx.lineWidth = 2
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
+
+  // Glow pass — drawn FIRST so the crisp curves sit on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip entirely for byte-identical pre-glow
+  // output. Both halo passes trace the SAME 720-sample table over the same
+  // θ ∈ [0, 2π] as the crisp curves — no seam at the loop wrap. See
+  // `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.lineWidth = 2 * K_GLOW
+    // Main petal halo — envelope alpha × gs.
+    ctx.globalAlpha = a0 * gs
+    ctx.beginPath()
+    for (let i = 0; i < N; i++) {
+      const r = scale * rFactor[i]
+      const x = r * cosTheta[i]
+      const y = r * sinTheta[i]
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+    // Inner echo halo — mirrors the crisp 0.5× alpha for depth.
+    ctx.globalAlpha = a0 * gs * 0.5
+    ctx.beginPath()
+    for (let i = 0; i < N; i++) {
+      const r = inner * rFactor[i]
+      const x = r * cosTheta[i]
+      const y = r * sinTheta[i]
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  ctx.lineWidth = 2
 
   // Main petals: `r = scale · cos(kθ)` → (r·cosθ, r·sinθ). r can go
   // negative — the polyline visits the antipodal point, which for a rose
@@ -125,7 +186,6 @@ export function draw(ctx, resolved, prepared, palette) {
 
   // Inner echo at 0.6 scale, half alpha for depth. Same table, no fresh
   // trig. globalAlpha is restored by the painter's per-layer restore.
-  const inner = scale * ECHO_SCALE
   ctx.globalAlpha *= 0.5
   ctx.beginPath()
   for (let i = 0; i < N; i++) {

@@ -14,6 +14,17 @@
  *
  * Imports `model/params.js` only (§4 rule 2). Consumes zero PRNG draws —
  * the structure is fully deterministic from params.
+ *
+ * **per-effect-glow (feature per-effect-glow, FR-6 additive AC).** When
+ * `glowStrength > 0`, `draw` re-runs the identical accumulated polygon +
+ * spoke path once BEFORE the crisp stroke under
+ * `globalCompositeOperation = 'lighter'` at `strokeWeight × K_GLOW` — the
+ * wide-additive-re-stroke archetype (see `src/util/glow.js` and the
+ * `pulse-rings.js` reference). Same polygons and same spokes → the halo
+ * closes at every polygon vertex and spoke tip exactly where the crisp
+ * stroke does. No `shadowBlur` (FR-6). `glowStrength` is appended LAST with
+ * default `{min:0,max:0}` (§9.2/§9.5): pre-glow seeds decode to `gs === 0`,
+ * which is a hard no-op → byte-identical render.
  */
 
 import { A, S } from '../model/params.js'
@@ -24,7 +35,9 @@ export const meta = {
   name: 'Spiral Web',
   role: 'primary',
   blurb: 'Concentric polygons laced with radial spokes — a radar web.',
-  worstCase: { pathOps: 432, drawCalls: 1 },
+  // Worst case doubles under the glow pass: path built twice (864 pathOps),
+  // 2 total strokes (1 halo + 1 crisp).
+  worstCase: { pathOps: 864, drawCalls: 2 },
   fullCanvasOpaque: false,
 }
 
@@ -36,11 +49,21 @@ export const params = [
   A('spacing', 30, 200, { default: { min: 48, max: 120 } }),
   A('strokeWeight', 1, 10, { default: { min: 1.5, max: 4 } }),
   A('rotation', 0, 360, { unit: '°', wrap: true }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
 const CY = 960
 const DEG = Math.PI / 180
+/**
+ * Halo width multiplier — 2.5 mirrors `pulse-rings.js`. At the max
+ * `strokeWeight = 10` the halo stroke is 25 px, wide enough to read as an
+ * outer bloom without smearing adjacent spokes/rings together.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} SpiralWebPrepared
@@ -90,10 +113,44 @@ export function draw(ctx, resolved, prepared, palette) {
   const spacing = /** @type {number} */ (resolved.spacing)
   const weight = /** @type {number} */ (resolved.strokeWeight)
   const rot = /** @type {number} */ (resolved.rotation) * DEG
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { ringCount, spokeCount, spokeCos, spokeSin } = prepared
+  const spokeRadius = base + (ringCount - 1) * spacing
 
   ctx.translate(CX, CY)
   ctx.rotate(rot)
+  ctx.strokeStyle = prepared.color
+  ctx.lineJoin = 'round'
+
+  // Glow pass — drawn FIRST so the crisp web sits on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip entirely for byte-identical pre-glow
+  // output. Re-runs the identical path (same polygons, same spokes) so the
+  // halo closes at every vertex where the crisp stroke does. See
+  // `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.lineWidth = weight * K_GLOW
+    ctx.beginPath()
+    for (let r = 0; r < ringCount; r++) {
+      const rad = base + r * spacing
+      for (let j = 0; j < spokeCount; j++) {
+        const x = spokeCos[j] * rad
+        const y = spokeSin[j] * rad
+        if (j === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.closePath()
+    }
+    for (let j = 0; j < spokeCount; j++) {
+      ctx.moveTo(0, 0)
+      ctx.lineTo(spokeCos[j] * spokeRadius, spokeSin[j] * spokeRadius)
+    }
+    ctx.stroke()
+    ctx.restore()
+  }
 
   ctx.beginPath()
   // Polygons: ring i at radius `base + i*spacing`, walked over the spoke
@@ -109,14 +166,11 @@ export function draw(ctx, resolved, prepared, palette) {
     ctx.closePath()
   }
   // Spokes: radial lines from the centre to the outermost ring's radius.
-  const spokeRadius = base + (ringCount - 1) * spacing
   for (let j = 0; j < spokeCount; j++) {
     ctx.moveTo(0, 0)
     ctx.lineTo(spokeCos[j] * spokeRadius, spokeSin[j] * spokeRadius)
   }
 
-  ctx.strokeStyle = prepared.color
   ctx.lineWidth = weight
-  ctx.lineJoin = 'round'
   ctx.stroke()
 }

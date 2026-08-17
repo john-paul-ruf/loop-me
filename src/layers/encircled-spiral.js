@@ -16,6 +16,19 @@
  * honouring §6.5's allocation ban (recorded in the build plan's D2 briefing).
  * `prepare` caches the per-arm base angles, which change only with
  * `armCount`. Consumes zero PRNG draws.
+ *
+ * **per-effect-glow (feature per-effect-glow, FR-6 additive AC).** When
+ * `glowStrength > 0`, `draw` re-runs the identical arm loop once BEFORE the
+ * crisp stroke under `globalCompositeOperation = 'lighter'` at
+ * `strokeWeight × K_GLOW` — the wide-additive-re-stroke archetype (see
+ * `src/util/glow.js` and the `pulse-rings.js` reference). Same POINTS
+ * samples, same `u = i / (POINTS - 1)` parameterisation → the halo hits
+ * every vertex where the crisp arm does; the arm has no wrap seam (open
+ * curve from centre out), so the loop-closure concern applies via the
+ * animated `rotation` wrap only, which both passes share by consuming the
+ * same `resolved.rotation`. No `shadowBlur` (FR-6). `glowStrength` is
+ * appended LAST with default `{min:0,max:0}` (§9.2/§9.5): pre-glow seeds
+ * decode to `gs === 0`, which is a hard no-op → byte-identical render.
  */
 
 import { A, S } from '../model/params.js'
@@ -26,7 +39,11 @@ export const meta = {
   name: 'Encircled Spiral',
   role: 'primary',
   blurb: 'Winding spiral arms that coil, sweep, and unwind.',
-  worstCase: { pathOps: 2160, drawCalls: 12 },
+  // Worst case doubles under the glow pass: path built twice (4320 pathOps),
+  // draw-call declaration also doubled to match the archetype (24 = 12 halo +
+  // 12 crisp bounds, even though both passes accumulate to a single stroke
+  // in practice — the declaration matches the historical [_, 12] budget).
+  worstCase: { pathOps: 4320, drawCalls: 24 },
   fullCanvasOpaque: false,
 }
 
@@ -37,6 +54,10 @@ export const params = [
   A('sweep', 90, 1440, { unit: '°', default: { min: 360, max: 720 } }),
   A('strokeWeight', 1, 14, { default: { min: 2, max: 6 } }),
   A('rotation', 0, 360, { unit: '°', wrap: true }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -45,6 +66,13 @@ const DEG = Math.PI / 180
 /** Points per arm: 12 arms × 180 = §10.2's 2,160 path ops. */
 const POINTS = 180
 const R_START = 8
+/**
+ * Halo width multiplier — 2.5 mirrors `pulse-rings.js`. At max
+ * `strokeWeight = 14` the halo stroke is 35 px; adjacent arms at max
+ * `armCount = 12` are 30° apart at the outer rim (~858 px) → ~450 px of
+ * arc between arm tips, so a 35-px halo stays comfortably clear of them.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} EncircledSpiralPrepared
@@ -83,8 +111,42 @@ export function draw(ctx, resolved, prepared, palette) {
   const tight = /** @type {number} */ (resolved.tightness)
   const sweepRad = /** @type {number} */ (resolved.sweep) * DEG
   const rot = /** @type {number} */ (resolved.rotation) * DEG
+  const weight = /** @type {number} */ (resolved.strokeWeight)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const outer = 900 - 840 * tight
   const { count, angles } = prepared
+
+  ctx.strokeStyle = prepared.color
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+
+  // Glow pass — drawn FIRST so the crisp arms sit on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip entirely for byte-identical pre-glow
+  // output. Re-runs the identical POINTS-sample arm loop → halo traces the
+  // same polyline as the crisp arm, so no seam anywhere along the spiral.
+  // See `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.lineWidth = weight * K_GLOW
+    ctx.beginPath()
+    for (let a = 0; a < count; a++) {
+      const base = rot + angles[a]
+      for (let i = 0; i < POINTS; i++) {
+        const u = i / (POINTS - 1)
+        const ang = base + u * sweepRad
+        const r = R_START + u * (outer - R_START)
+        const x = CX + Math.cos(ang) * r
+        const y = CY + Math.sin(ang) * r
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+    }
+    ctx.stroke()
+    ctx.restore()
+  }
 
   ctx.beginPath()
   for (let a = 0; a < count; a++) {
@@ -99,9 +161,6 @@ export function draw(ctx, resolved, prepared, palette) {
       else ctx.lineTo(x, y)
     }
   }
-  ctx.strokeStyle = prepared.color
-  ctx.lineWidth = /** @type {number} */ (resolved.strokeWeight)
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
+  ctx.lineWidth = weight
   ctx.stroke()
 }
