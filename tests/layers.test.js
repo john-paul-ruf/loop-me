@@ -508,6 +508,70 @@ suite('layers — secondary W3 min-bound visibility floors are guarded (FR-6 AC 
   }
 })
 
+/**
+ * The omni-wave overlay W3 block — atmosphere overlays (53–57) that paint
+ * their own geometry (dots, ribbons, stars, streaks) at modest alpha over
+ * whatever is below. The solo determinism check is against a bare
+ * background: every W3 overlay consumes a FIXED number of rng draws in
+ * prepare (halftone 0, bokeh 112, aurora 20, star-twinkle 700, flare 12)
+ * and no per-frame entropy, so two paints against the same rngSeed and
+ * frame must land the exact same pixels.
+ */
+const OVERLAY_W3_IDS = [53, 54, 55, 56, 57]
+
+suite('layers — overlay W3 determinism (FR-4: same seed, same frame → same pixels)', () => {
+  for (const id of OVERLAY_W3_IDS) {
+    const mod = /** @type {LayerModule} */ (list().find((m) => m.meta.id === id))
+    test(`type ${id} ${mod.meta.name}: solo is bit-for-bit stable across paints`, () => {
+      const params = pinnedParams(mod, 'mid')
+      const a = new Uint8ClampedArray(paintOne(makeLayer(id, params)))
+      const b = new Uint8ClampedArray(paintOne(makeLayer(id, params)))
+      assertEq(a.length, b.length, 'read-back length changed between paints')
+      for (let i = 0; i < a.length; i += 4 * 61) {
+        assertEq(a[i], b[i], `red channel drift at byte ${i}`)
+      }
+    })
+  }
+})
+
+/**
+ * Per-type pin for the W3 overlays — the row shape mirrors the primary
+ * and secondary W3 driver maps. Each overlay declares at least one A
+ * param whose zero would produce a null figure (dots at zero opacity,
+ * ribbons at zero glow, stars at zero twinkle, streaks at zero flare);
+ * every A `.min` must be strictly positive so the FR-6 sweep can't be
+ * silently passed by a degenerate bound. Halftone Sweep's driving A is
+ * `opacity` (composed alpha), not `spread` — `spread.min = 60` guarantees
+ * a visible fade band by construction.
+ * @type {Record<number, string>}
+ */
+const OVERLAY_W3_DRIVER = {
+  53: 'opacity', // Halftone Sweep — composed alpha, 0 blanks every bucket
+  54: 'glow',    // Bokeh Drift — envelope multiplier, 0 blanks every disc
+  55: 'lumen',   // Aurora Veil — envelope multiplier, 0 blanks every ribbon
+  56: 'twinkle', // Star Twinkle — bucket alpha modulator, 0 blanks every star
+  57: 'flare',   // Anamorphic Flare — envelope multiplier, 0 blanks every streak
+}
+
+suite('layers — overlay W3 min-bound visibility floors are guarded (FR-6 AC regression)', () => {
+  for (const id of OVERLAY_W3_IDS) {
+    const mod = /** @type {LayerModule} */ (list().find((m) => m.meta.id === id))
+    const driverName = OVERLAY_W3_DRIVER[id]
+    test(`type ${id} ${mod.meta.name}: driver "${driverName}" has a strictly positive min`, () => {
+      assert(driverName !== undefined, `no driver param mapped for overlay W3 type ${id}`)
+      const decl = mod.params.find((p) => p.name === driverName)
+      assert(decl !== undefined, `type ${id}: no "${driverName}" param`)
+      assertEq(decl.kind, 'A', `type ${id}: "${driverName}" must be animatable`)
+      // Strictly > 0 — the FR-6 "renders nothing at every bound" AC needs
+      // headroom, not merely non-negativity.
+      assert(
+        decl.min > 0,
+        `type ${id}: "${driverName}".min ${decl.min} must be > 0 to guarantee a visible atmosphere`,
+      )
+    })
+  }
+})
+
 suite('layers — Flag 4 in the real catalog: layer `opacity` composes with the envelope', () => {
   test('Scan Lines: band pixel = envelope × band opacity, not either alone', () => {
     const params = pinnedParams(/** @type {LayerModule} */ (list().find((m) => m.meta.id === 14)), 'mid')
