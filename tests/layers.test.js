@@ -37,6 +37,7 @@ import { state } from '../src/core/state.js'
 import { list } from '../src/model/registry.js'
 import { buildPalette } from '../src/model/schemes.js'
 import { defaultOf } from '../src/model/params.js'
+import { clampLayer } from '../src/model/composition.js'
 
 /** @typedef {import('../src/model/params.js').Layer} Layer */
 /** @typedef {import('../src/model/params.js').Composition} Composition */
@@ -91,6 +92,24 @@ function pinnedParams(mod, which) {
       out[decl.name] = v
     }
   }
+  return out
+}
+
+/**
+ * `pinnedParams(mod, 'mid')` with the named param removed — the seed shape a
+ * pre-append-only-field composition would have carried. Feeds the
+ * backward-compat half of the glow suite (feature per-effect-glow): the
+ * decoder's clamp pass fills the missing trailing param from the declaration's
+ * `default`, so a pinned frame and an omitted frame must render byte-identical
+ * when the pin value equals the neutral default.
+ *
+ * @param {LayerModule} mod
+ * @param {string} name
+ * @returns {Record<string, import('../src/model/params.js').ParamValue>}
+ */
+function paramsWithout(mod, name) {
+  const out = pinnedParams(mod, 'mid')
+  delete out[name]
   return out
 }
 
@@ -604,4 +623,149 @@ suite('layers — Flag 4 in the real catalog: layer `opacity` composes with the 
     assert(maxDiff <= 60, `max red deviation ${maxDiff} exceeds the composed-alpha bound (collision?)`)
     assert(maxDiff >= 25, `max red deviation ${maxDiff} is too small — grain barely painted`)
   })
+})
+
+/**
+ * ---------------------------------------------------------------------------
+ * feature per-effect-glow — rollout-tolerant glow sweep.
+ *
+ * Every non-glitch layer gains an appended `glowStrength` param over S02–S07;
+ * this suite asserts the four invariants each converted layer must uphold and
+ * SKIPS layers whose `params` don't yet declare `glowStrength`. Green with
+ * three converted layers today (`pulse-rings`, `orbit-dots`, `fuzz-flare`),
+ * still green when 44 more join, strict "every non-glitch layer glows" gate
+ * lives in S08 (not here).
+ *
+ * The four invariants (per SESSION-01):
+ *   1. **Backward-compat.** Pinning `glowStrength` to the declaration's
+ *      neutral default and OMITTING it from `layer.params` (clamp fills)
+ *      must produce pixel-identical frames. Proves the `gs === 0` guard AND
+ *      the pre-glow seed contract: every previously-shared seed still
+ *      decodes and renders byte-identical.
+ *   2. **Glow is visible.** `glowStrength = 1` must differ from
+ *      `glowStrength = 0` — the layer isn't just declaring a param.
+ *   3. **In budget.** A drawCall-counting probe wrapped around `paintOne`
+ *      must count at most `mod.meta.worstCase.drawCalls + 1` calls (the
+ *      `+1` covers the painter's own background `fillRect`, not the
+ *      layer's own draw budget).
+ *   4. **No throw / no error report** at min/mid/max bounds. Enforced by
+ *      the existing solo sweep above — if the layer errored, the FR-18
+ *      fence would set `layer.errored = true` and the fresh-clamp used in
+ *      test 1 would still work, but let the composed-sweep coverage stand.
+ * ---------------------------------------------------------------------------
+ */
+
+/**
+ * Sum of `stroke() + fill() + fillRect()` calls issued during one `paintOne`.
+ * Uses direct method patch + try/finally restore rather than a Proxy, so the
+ * shared `ctx` state is untouched between tests. The count includes the
+ * painter's own background `fillRect` (one call per paint) — callers compare
+ * against `worstCase.drawCalls + 1` to keep the layer's own budget honest.
+ *
+ * @param {Layer} layer
+ * @returns {number}
+ */
+function countDrawCallsFor(layer) {
+  let count = 0
+  const orig = {
+    stroke: ctx.stroke.bind(ctx),
+    fill: ctx.fill.bind(ctx),
+    fillRect: ctx.fillRect.bind(ctx),
+  }
+  ctx.stroke = () => { count++; return orig.stroke() }
+  ctx.fill = /** @type {any} */ (
+    /** @param {Path2D} [path] */ (path) => { count++; return path === undefined ? orig.fill() : orig.fill(path) }
+  )
+  ctx.fillRect = /** @type {any} */ (
+    /** @param {number} x @param {number} y @param {number} w @param {number} h */
+    (x, y, w, h) => { count++; return orig.fillRect(x, y, w, h) }
+  )
+  try {
+    paintOne(layer)
+  } finally {
+    ctx.stroke = orig.stroke
+    ctx.fill = orig.fill
+    ctx.fillRect = orig.fillRect
+  }
+  return count
+}
+
+suite('layers — glow behavior, non-glitch catalog (feature per-effect-glow)', () => {
+  const glowing = list().filter((m) =>
+    m.meta.role !== 'glitch'
+    && m.params.some((p) => p.name === 'glowStrength')
+  )
+
+  for (const mod of glowing) {
+    test(`type ${mod.meta.id} ${mod.meta.name}: pinned to default vs omitted are pixel-identical`, () => {
+      // Neutral default: for most layers `{min:0,max:0}` (gs === 0, glow no-op);
+      // for Fuzz Flare (id 13) `{min:1,max:1}` (its pre-glow output already IS
+      // the glow). Pinning to the default's min reproduces the default's
+      // frame; omitting lets `clampLayer` fill the same default from decl.
+      const decl = /** @type {import('../src/model/params.js').ParamDecl} */ (
+        mod.params.find((p) => p.name === 'glowStrength')
+      )
+      const dflt = /** @type {import('../src/model/params.js').AnimValue} */ (decl.default)
+
+      const pinned = pinnedParams(mod, 'mid')
+      pinned.glowStrength = pin(dflt.min) // dflt.min === dflt.max by construction
+      const a = new Uint8ClampedArray(paintOne(makeLayer(mod.meta.id, pinned)))
+
+      // Omitted path: build a layer with `glowStrength` absent, then clamp —
+      // clampLayer fills missing trailing params from the declaration's
+      // default (composition.js clampLayer, architecture §9.5). This exercises
+      // the exact path a pre-glow seed decodes through.
+      const omittedLayer = makeLayer(mod.meta.id, paramsWithout(mod, 'glowStrength'))
+      clampLayer(omittedLayer)
+      const b = paintOne(omittedLayer)
+
+      assert(
+        !anyPixelDiffers(a, b, 0),
+        `${mod.meta.name}: pin(default) and omit-then-clamp diverged — either the guard leaked or the default drifted from neutral`,
+      )
+    })
+
+    test(`type ${mod.meta.id} ${mod.meta.name}: glowStrength=1 differs from glowStrength=0`, () => {
+      const off = pinnedParams(mod, 'mid')
+      off.glowStrength = pin(0)
+      const a = new Uint8ClampedArray(paintOne(makeLayer(mod.meta.id, off)))
+
+      const on = pinnedParams(mod, 'mid')
+      on.glowStrength = pin(1)
+      const b = paintOne(makeLayer(mod.meta.id, on))
+
+      assert(
+        anyPixelDiffers(a, b, 4),
+        `${mod.meta.name}: gs=0 and gs=1 painted the same frame — glow pass is either unreachable or invisible`,
+      )
+    })
+
+    test(`type ${mod.meta.id} ${mod.meta.name}: drawCalls at glowStrength=1 max stays inside declared worstCase`, () => {
+      const params = pinnedParams(mod, 'max')
+      params.glowStrength = pin(1)
+      const budget = mod.meta.worstCase.drawCalls
+      // +1 for the painter's own background fillRect (not part of the layer's
+      // declared draw budget). See `countDrawCallsFor`.
+      const count = countDrawCallsFor(makeLayer(mod.meta.id, params))
+      assert(
+        count <= budget + 1,
+        `${mod.meta.name} at gs=1 max issued ${count} draw calls, worstCase.drawCalls=${budget} (+1 bg)`,
+      )
+    })
+
+    test(`type ${mod.meta.id} ${mod.meta.name}: paints at min/mid/max without firing the FR-18 fence`, () => {
+      // Broadens the solo sweep above: sweep every param bound WITH the glow
+      // pass exercised at each. `pinnedParams(mod, 'max')` already pins
+      // `glowStrength` to its own max = 1 (glow on); `'min'` pins to 0
+      // (glow off); `'mid'` to 0.5 — every branch of the guard is walked.
+      for (const which of /** @type {('min'|'mid'|'max')[]} */ (['min', 'mid', 'max'])) {
+        const layer = makeLayer(mod.meta.id, pinnedParams(mod, which))
+        paintOne(layer)
+        assertEq(
+          layer.errored ?? false, false,
+          `${mod.meta.name} errored at ${which} bounds — FR-18 fence fired inside prepare/draw`,
+        )
+      }
+    })
+  }
 })
