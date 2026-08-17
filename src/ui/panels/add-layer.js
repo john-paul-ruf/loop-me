@@ -2,7 +2,7 @@
 /**
  * Add-layer modal (mocks/add-layer.html, FR-5, FR-6, FR-9).
  *
- * Shows all 42 types grouped by role with their CSS impression previews.
+ * Shows all 47 types grouped by role with their CSS impression previews.
  * Picking a type adds it **on top** with randomized in-bounds parameters —
  * never a blank default that renders nothing. Unreachable while the governor
  * warns (the Add layer button in the composition panel is disabled with
@@ -81,6 +81,10 @@ const VIZ_CLASS = {
   43: 'v-liss',
   44: 'v-rose',
   45: 'v-epi',
+  // 46 uses `v-skip` (skip-star) — `v-star` is already ID 21's Burst Star
+  // impression; a {n/k} polygon deserves its own visual language.
+  46: 'v-skip',
+  47: 'v-squircle',
 }
 
 /** Role dot class per role name. */
