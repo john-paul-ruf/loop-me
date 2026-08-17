@@ -10,6 +10,16 @@
  * `drift` (a global cycle position) and `glow` (a global alpha) animate
  * across the frame.
  *
+ * **per-effect-glow (FR-6, §9.5):** appends `glowStrength` LAST (default
+ * `{min:0,max:0}` ⇒ pre-glow seeds decode to `gs === 0`, a hard no-op ⇒
+ * byte-identical). At `gs > 0` a guarded second per-disc loop re-draws
+ * the same baked bucket sprite at `K_GLOW × diameter` under
+ * `globalCompositeOperation = 'lighter'` at `alpha = a0 * gs` — one halo
+ * blit per disc (bounded by `discs`). Discs are already soft; the halo
+ * widens the falloff, reading as a stronger bokeh bloom rather than a
+ * different mark. No `shadowBlur` (FR-6); zero per-frame allocation (§6.5,
+ * the halo reuses the existing pre-baked sprite).
+ *
  * Loop closure is intrinsic to the integer-harmonic orbit math (omni-wave
  * S02 precedent): each disc's angle is `k_i · 2π · u + phase_i` with `u =
  * drift/360` and `k_i` a positive integer, so at `u = 1` (drift = 360°)
@@ -47,7 +57,10 @@ export const meta = {
   name: 'Bokeh Drift',
   role: 'overlay',
   blurb: 'Soft glowing discs orbiting across the frame.',
-  worstCase: { pathOps: 0, drawCalls: 16 },
+  // per-effect-glow: guarded per-disc additive drawImage under 'lighter' —
+  // one extra drawCall per disc when `gs > 0` (16 → 32). drawImage adds no
+  // path ops, so `pathOps` stays 0.
+  worstCase: { pathOps: 0, drawCalls: 32 },
   fullCanvasOpaque: false,
 }
 
@@ -59,6 +72,12 @@ export const params = [
   A('drift', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
   // glow.min > 0 (0.15) composes with envelope alpha (Flag 4).
   A('glow', 0.15, 0.7, { default: { min: 0.25, max: 0.55 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒
+  // pre-glow seeds decode to glow-off (`gs === 0` skips the halo loop
+  // entirely, byte-identical). NB: unrelated to the pre-existing `glow`
+  // envelope-alpha param above; that one modulates every disc's opacity,
+  // while `glowStrength` gates the additive halo pass.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -85,6 +104,11 @@ const K_MAX = 3
  * 256 px sprite (memory) and a 160 px disc never gets a 64 px sprite
  * magnified into a soft-blur puddle. */
 const SPRITE_SIZES = [64, 128, 256]
+/** Additive halo scale for the per-effect-glow pass. Tuned visually:
+ * discs are already soft — a modest widening (1.5×) reads as a stronger
+ * bokeh bloom without turning each disc into a flat wash. Below 1.25 the
+ * halo hides inside the sprite's own transparent falloff. */
+const K_GLOW = 1.5
 
 /**
  * @typedef {object} BokehDriftPrepared
@@ -221,6 +245,7 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const driftDeg = /** @type {number} */ (resolved.drift)
   const glow = /** @type {number} */ (resolved.glow)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { discs, sprites, baseX, baseY, radius, rx, ry, phase, k, bucket } = prepared
 
   // Flag 4 posture: composes with envelope alpha, never replaces it.
@@ -234,5 +259,24 @@ export function draw(ctx, resolved, prepared, palette) {
     const rad = radius[i]
     // drawImage scales the native sprite to `2r × 2r` centred on (px, py).
     ctx.drawImage(sprites[bucket[i]], px - rad, py - rad, 2 * rad, 2 * rad)
+  }
+
+  // per-effect-glow: guarded additive halo per disc — re-issue the same
+  // baked sprite widened to K_GLOW × diameter under 'lighter'. `gs === 0`
+  // skips the whole loop (byte-identical to pre-glow output). Save
+  // captures blend + alpha so restore returns them cleanly.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    for (let i = 0; i < discs; i++) {
+      const ang = k[i] * TWO_PI * u + phase[i]
+      const px = baseX[i] + rx[i] * Math.cos(ang)
+      const py = baseY[i] + ry[i] * Math.sin(ang)
+      const halo = radius[i] * K_GLOW
+      ctx.drawImage(sprites[bucket[i]], px - halo, py - halo, 2 * halo, 2 * halo)
+    }
+    ctx.restore()
   }
 }

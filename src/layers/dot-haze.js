@@ -22,6 +22,16 @@
  * (`SPREAD_X = 440, SPREAD_Y = 860`).
  *
  * Imports `model/params.js` and `core/rng.js` (§4 rule 2).
+ *
+ * **per-effect-glow (FR-6, §9.5):** appends `glowStrength` LAST (default
+ * `{min:0,max:0}` ⇒ pre-glow seeds decode to `gs === 0`, a hard no-op ⇒
+ * byte-identical). At `gs > 0` a guarded second per-dot loop re-blits the
+ * same cached radial gradient at `K_GLOW × radius` under
+ * `globalCompositeOperation = 'lighter'` at `alpha = a0 * gs` — one halo
+ * blit per haze cluster (bounded by `dotCount`, budget-disciplined).
+ * `orbit-dots.js` reference: single additive re-issue of the same sprite
+ * geometry at a widened scale, no new sprite mint. No `shadowBlur` (FR-6);
+ * zero per-frame allocation (§6.5).
  */
 
 import { A, S } from '../model/params.js'
@@ -33,7 +43,9 @@ export const meta = {
   name: 'Dot Haze',
   role: 'overlay',
   blurb: 'Soft drifting glow dots suspended over the frame.',
-  worstCase: { pathOps: 12, drawCalls: 12 },
+  // per-effect-glow: guarded second per-dot loop under 'lighter' — one
+  // extra fillRect per dot when `gs > 0` (12 → 24 draws and pathOps).
+  worstCase: { pathOps: 24, drawCalls: 24 },
   fullCanvasOpaque: false,
 }
 
@@ -44,6 +56,10 @@ export const params = [
   A('intensity', 0.05, 0.7, { default: { min: 0.25, max: 0.55 } }),
   S.num('spread', 0, 1, { default: 0.7 }),
   S.num('sizeSpread', 0.5, 2.0, { default: 1.3 }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒
+  // pre-glow seeds decode to glow-off (`gs === 0` skips the halo loop
+  // entirely, byte-identical). See file header for the technique.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -51,6 +67,12 @@ const CY = 960
 /** Max centre offsets: keeps every dot centre ≥ 100 px inside the canvas. */
 const SPREAD_X = 440
 const SPREAD_Y = 860
+/** Additive halo scale for the per-effect-glow pass. Tuned visually: below
+ * 1.25 the halo hides inside the crisp dot at every declared radius; above
+ * 1.75 adjacent dots' halos merge into an ambient wash on the max dotCount
+ * (12) × min spread configuration. 1.5 gives each dot a clearly wider ring
+ * of light without blowing the haze into a flat glow. */
+const K_GLOW = 1.5
 
 /**
  * @typedef {object} DotHazePrepared
@@ -107,6 +129,7 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const base = /** @type {number} */ (resolved.baseRadius)
   const intensity = /** @type {number} */ (resolved.intensity)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { count, glow, dx, dy, mult } = prepared
 
   // Flag 4 posture: composes with the envelope alpha, never replaces it.
@@ -116,5 +139,22 @@ export function draw(ctx, resolved, prepared, palette) {
     const s = base * mult[i]
     ctx.setTransform(s, 0, 0, s, dx[i], dy[i])
     ctx.fillRect(-1, -1, 2, 2)
+  }
+
+  // per-effect-glow: guarded additive halo per dot — same sprite, widened
+  // to K_GLOW × radius under 'lighter'. `gs === 0` skips the whole loop
+  // (byte-identical to pre-glow output). fillStyle survives from the crisp
+  // pass; save captures blend + alpha so restore returns them cleanly.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    for (let i = 0; i < count; i++) {
+      const s = base * mult[i] * K_GLOW
+      ctx.setTransform(s, 0, 0, s, dx[i], dy[i])
+      ctx.fillRect(-1, -1, 2, 2)
+    }
+    ctx.restore()
   }
 }
