@@ -21,6 +21,16 @@
  * zero PRNG draws.
  *
  * Imports `model/params.js` only (§4 rule 2).
+ *
+ * **per-effect-glow — nominal fit (FR-6, §9.5).** Soft Tint is a low-opacity
+ * *tinting* wash, so an additive bloom in the same colour is a weak
+ * conceptual fit — but the param is declared for catalog consistency (S08
+ * asserts every non-glitch layer declares `glowStrength`). Behaviour: at
+ * `gs > 0` an additional fillRect re-issues the same cached gradient under
+ * `'lighter'` at `alpha = a0 * gs * NOMINAL_K`, gently warming the tinted
+ * half of the frame. Default `{min:0,max:0}` ⇒ `gs === 0` is a hard no-op
+ * ⇒ byte-identical to pre-glow output. No `shadowBlur`; zero per-frame
+ * allocation.
  */
 
 import { A } from '../model/params.js'
@@ -31,7 +41,9 @@ export const meta = {
   name: 'Soft Tint',
   role: 'overlay',
   blurb: 'A gentle colour wash brushing the frame at an angle.',
-  worstCase: { pathOps: 1, drawCalls: 1 },
+  // per-effect-glow: nominal additive re-fill adds one extra fillRect (one
+  // drawCall, one pathOp) when `gs > 0`.
+  worstCase: { pathOps: 2, drawCalls: 2 },
   fullCanvasOpaque: false,
 }
 
@@ -40,12 +52,21 @@ export const params = [
   A('angle', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
   A('strength', 0.05, 0.75, { default: { min: 0.15, max: 0.4 } }),
   A('falloff', 0.1, 1.0, { default: { min: 0.4, max: 0.8 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒
+  // pre-glow seeds decode to glow-off, `gs === 0` skips the additive pass
+  // (byte-identical). Nominal fit — see file header.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
 const CY = 960
 const DEG = Math.PI / 180
 const DIAG = Math.hypot(1080, 1920)
+/** Nominal-fit tuning: a low-opacity tint plus additive is easy to overdrive
+ * to a flat glow — this factor scales the additive alpha DOWN so `gs = 1`
+ * reads as a warm lift on the tinted side, not a second full-frame tint on
+ * top. Matches vignette-wash's NOMINAL_K. */
+const NOMINAL_K = 0.35
 
 /**
  * @typedef {object} SoftTintPrepared
@@ -85,6 +106,7 @@ export function draw(ctx, resolved, prepared, palette) {
   const angle = /** @type {number} */ (resolved.angle) * DEG
   const strength = /** @type {number} */ (resolved.strength)
   const falloff = /** @type {number} */ (resolved.falloff)
+  const gs = /** @type {number} */ (resolved.glowStrength)
 
   // Flag 4 posture: composes with the envelope alpha, never replaces it.
   ctx.globalAlpha = ctx.globalAlpha * strength
@@ -96,4 +118,18 @@ export function draw(ctx, resolved, prepared, palette) {
   ctx.fillStyle = prepared.wash
   // ±2 units → ±2·s ≥ ±2196 px, covers the canvas at any rotation.
   ctx.fillRect(-2, -2, 4, 4)
+
+  // per-effect-glow: nominal additive bloom — re-fill the same tint under
+  // 'lighter' at NOMINAL_K × gs × envelope alpha. Tint + additive is easy
+  // to overdrive to a flat glow, so K is low: max lift is a subtle warm
+  // on the tinted half, never a blown highlight. `gs === 0` skips the
+  // pass entirely (§9.5, byte-identical).
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs * NOMINAL_K
+    ctx.fillRect(-2, -2, 4, 4)
+    ctx.restore()
+  }
 }

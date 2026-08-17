@@ -21,6 +21,14 @@
  * transform pattern). Consumes zero PRNG draws.
  *
  * Imports `model/params.js` only (§4 rule 2).
+ *
+ * **per-effect-glow (FR-6, §9.5):** appends `glowStrength` LAST (default
+ * `{min:0,max:0}` ⇒ pre-glow seeds decode to `gs === 0`, a hard no-op ⇒
+ * byte-identical). At `gs > 0` an additional guarded fillRect re-issues
+ * the same cached radial gradient under `globalCompositeOperation =
+ * 'lighter'` at `alpha = a0 * gs` — a wash-layer additive bloom that
+ * brightens the leak in its own colour. No `shadowBlur` (FR-6); zero
+ * per-frame allocation (§6.5).
  */
 
 import { A } from '../model/params.js'
@@ -31,7 +39,9 @@ export const meta = {
   name: 'Light Leak',
   role: 'overlay',
   blurb: 'A soft glow drifting across the frame like a light leak.',
-  worstCase: { pathOps: 1, drawCalls: 1 },
+  // per-effect-glow: additive re-fill of the same cached gradient adds one
+  // extra fillRect (one drawCall, one pathOp) when `gs > 0`.
+  worstCase: { pathOps: 2, drawCalls: 2 },
   fullCanvasOpaque: false,
 }
 
@@ -41,6 +51,10 @@ export const params = [
   A('offsetX', -540, 540, { default: { min: -200, max: 200 } }),
   A('offsetY', -960, 960, { default: { min: -300, max: 300 } }),
   A('strength', 0.05, 0.85, { default: { min: 0.25, max: 0.6 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` (byte-identical to pre-glow output).
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -86,6 +100,7 @@ export function draw(ctx, resolved, prepared, palette) {
   const ox = /** @type {number} */ (resolved.offsetX)
   const oy = /** @type {number} */ (resolved.offsetY)
   const strength = /** @type {number} */ (resolved.strength)
+  const gs = /** @type {number} */ (resolved.glowStrength)
 
   // Flag 4 posture: composes with the envelope alpha, never replaces it.
   ctx.globalAlpha = ctx.globalAlpha * strength
@@ -93,4 +108,18 @@ export function draw(ctx, resolved, prepared, palette) {
   ctx.fillStyle = prepared.glow
   // ±2 units → ±2·radius ≥ ±200 px, covering the glow's visible extent.
   ctx.fillRect(-2, -2, 4, 4)
+
+  // per-effect-glow: additive bloom on top of the crisp leak — re-fill the
+  // same cached gradient at the same transform under 'lighter'. `gs === 0`
+  // skips the pass entirely for byte-identical pre-glow output (§9.5).
+  // Transform and fillStyle are still in effect from the crisp pass; save
+  // captures blend + alpha so restore returns them for the next layer.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.fillRect(-2, -2, 4, 4)
+    ctx.restore()
+  }
 }
