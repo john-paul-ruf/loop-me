@@ -44,6 +44,7 @@ import * as lightLeak from '../layers/light-leak.js'
 import * as softTint from '../layers/soft-tint.js'
 import * as dotHaze from '../layers/dot-haze.js'
 import * as stripeSweep from '../layers/stripe-sweep.js'
+import * as sliceShift from '../layers/slice-shift.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -272,3 +273,4 @@ register(lightLeak)
 register(softTint)
 register(dotHaze)
 register(stripeSweep)
+register(sliceShift)

@@ -159,6 +159,128 @@ suite('layers — the 16-type min/mid/max sweep (FR-6 AC)', () => {
   }
 })
 
+/**
+ * Glitch layers (role === 'glitch', IDs 33+) redistribute the frame below
+ * rather than emit imagery of their own — solo over a bare background they
+ * are visually void by design (see also SESSION-01 §"Composed sweep, not
+ * solo sweep"). The min/mid/max sweep above pins that solo case as `id ≤
+ * 16` only (which is stale for 17–32 too — a separate maintenance concern
+ * flagged in STATE.md).
+ *
+ * This suite pins the *composed* case: paint a solid base first, then the
+ * glitch on top, at every declared bound. Every driving param's `.min > 0`
+ * (jolt ≥ 8, shift ≥ 2, density > 0, roll ≥ 8) so no bound is silently
+ * invisible.
+ */
+
+// Grid Pulse (10) at mid, pinned — a dense, non-blank base that never
+// paints a flat colour.
+/** @type {LayerModule} */
+const gridPulseMod = /** @type {LayerModule} */ (list().find((m) => m.meta.id === 10))
+const glitchLayers = list().filter((m) => m.meta.role === 'glitch')
+
+/**
+ * Snapshot Grid Pulse painted alone (deterministic — pinned rngSeed and
+ * min===max A params). Cached because the composed sweep re-uses it.
+ * @returns {Uint8ClampedArray}
+ */
+function baseGridPulseSnapshot() {
+  const base = makeLayer(10, pinnedParams(gridPulseMod, 'mid'))
+  const img = paintOne(base)
+  // Copy: paintOne shares the ctx, so the next paint would overwrite the
+  // typed array underneath us.
+  return new Uint8ClampedArray(img)
+}
+
+/**
+ * Paint Grid Pulse + one glitch layer on top; return the pixel read-back.
+ *
+ * @param {number} glitchType
+ * @param {Record<string, import('../src/model/params.js').ParamValue>} glitchParams
+ * @returns {Uint8ClampedArray}
+ */
+function paintComposed(glitchType, glitchParams) {
+  const base = makeLayer(10, pinnedParams(gridPulseMod, 'mid'))
+  const glitch = makeLayer(glitchType, glitchParams)
+  /** @type {Composition} */
+  const c = { durationId: 1, scheme: 0, layers: [base, glitch] }
+  state.composition = c
+  state.palette = buildPalette(c.scheme, c.layers)
+  state.dirty = [false, false]
+  prewarm()
+  setTarget(ctx)
+  paint(0, TOTAL)
+  return ctx.getImageData(0, 0, W, H).data
+}
+
+/**
+ * Does any pixel in `a` differ from `b` by ≥ `tol` on some channel?
+ * @param {Uint8ClampedArray} a
+ * @param {Uint8ClampedArray} b
+ * @param {number} tol
+ * @returns {boolean}
+ */
+function anyPixelDiffers(a, b, tol) {
+  for (let i = 0; i < a.length; i += 4) {
+    if (
+      Math.abs(a[i] - b[i]) >= tol ||
+      Math.abs(a[i + 1] - b[i + 1]) >= tol ||
+      Math.abs(a[i + 2] - b[i + 2]) >= tol
+    ) return true
+  }
+  return false
+}
+
+/**
+ * Is every pixel the same colour (within `tol`)? A glitch layer that
+ * covered the frame in a flat colour would smuggle "hides the stack"
+ * behaviour past `fullCanvasOpaque: false`.
+ * @param {Uint8ClampedArray} img
+ * @param {number} tol
+ * @returns {boolean}
+ */
+function isMonochrome(img, tol) {
+  const r = img[0]
+  const g = img[1]
+  const b = img[2]
+  for (let i = 4; i < img.length; i += 4) {
+    if (
+      Math.abs(img[i] - r) > tol ||
+      Math.abs(img[i + 1] - g) > tol ||
+      Math.abs(img[i + 2] - b) > tol
+    ) return false
+  }
+  return true
+}
+
+suite('layers — glitch composed sweep (base + glitch, FR-6 AC via §6.4 self-sampling)', () => {
+  for (const mod of glitchLayers) {
+    test(`type ${mod.meta.id} ${mod.meta.name}: composed with Grid Pulse alters every bound`, () => {
+      const baseSnap = baseGridPulseSnapshot()
+      for (const which of /** @type {('min'|'mid'|'max')[]} */ (['min', 'mid', 'max'])) {
+        const params = pinnedParams(mod, which)
+        const img = paintComposed(mod.meta.id, params)
+        assert(
+          anyPixelDiffers(img, baseSnap, 4),
+          `${mod.meta.name} at ${which} bounds did nothing — some pixel must differ from the base-alone frame`,
+        )
+        assert(
+          !isMonochrome(img, 4),
+          `${mod.meta.name} at ${which} bounds flattened the frame to one colour`,
+        )
+      }
+    })
+
+    test(`type ${mod.meta.id} ${mod.meta.name}: solo over bare background does not throw`, () => {
+      for (const which of /** @type {('min'|'mid'|'max')[]} */ (['min', 'mid', 'max'])) {
+        // Void by design (nothing to sample) but the FR-18 fence must not
+        // fire — no throw, no error report.
+        paintOne(makeLayer(mod.meta.id, pinnedParams(mod, which)))
+      }
+    })
+  }
+})
+
 suite('layers — Flag 4 in the real catalog: layer `opacity` composes with the envelope', () => {
   test('Scan Lines: band pixel = envelope × band opacity, not either alone', () => {
     const params = pinnedParams(/** @type {LayerModule} */ (list().find((m) => m.meta.id === 14)), 'mid')

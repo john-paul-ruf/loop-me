@@ -214,11 +214,11 @@ suite('registry — layer type catalog (architecture §5.3, §8.2)', () => {
 
 /** The real catalog, without any suite's synthetic types. */
 function catalog() {
-  return list().filter((m) => m.meta.id <= 32)
+  return list().filter((m) => m.meta.id <= 33)
 }
 
-suite('registry — the 32-type catalog pin (architecture §8.2, FR-6)', () => {
-  test('exactly types 1–32, in ID order, names pinned', () => {
+suite('registry — the 33-type catalog pin (architecture §8.2, FR-6)', () => {
+  test('exactly types 1–33, in ID order, names pinned', () => {
     // Changing a line here silently orphans every seed that stores the ID.
     const NAMES = [
       'Ray Rings', 'Nth Rings', 'Layered Poly', 'Encircled Spiral',
@@ -231,10 +231,11 @@ suite('registry — the 32-type catalog pin (architecture §8.2, FR-6)', () => {
       'Lattice Weave', 'Concentric Waves', 'Triangulation',
       'Light Leak', 'Soft Tint', 'Dot Haze',
       'Stripe Sweep',
+      'Slice Shift',
     ]
     const cat = catalog()
-    assertEq(cat.length, 32, 'the catalog holds exactly 32 types')
-    for (let i = 0; i < 32; i++) {
+    assertEq(cat.length, 33, 'the catalog holds exactly 33 types')
+    for (let i = 0; i < 33; i++) {
       assertEq(cat[i].meta.id, i + 1, `position ${i} carries ID ${i + 1}`)
       assertEq(cat[i].meta.name, NAMES[i], `ID ${i + 1} name`)
     }
@@ -263,6 +264,7 @@ suite('registry — the 32-type catalog pin (architecture §8.2, FR-6)', () => {
       26: [600, 2], 27: [600, 1], 28: [2304, 1],
       29: [1, 1], 30: [1, 1], 31: [12, 12],
       32: [1, 1],
+      33: [24, 25],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -288,7 +290,7 @@ suite('registry — the 32-type catalog pin (architecture §8.2, FR-6)', () => {
     // which is exactly why B1 deferred this test until the catalog existed.
     assertThrows(() => register(one), 'duplicate ID must be rejected')
     assertEq(get(1), one, 'the original module is still registered')
-    assertEq(catalog().length, 32, 'catalog unchanged')
+    assertEq(catalog().length, 33, 'catalog unchanged')
   })
 
   test('the reserved statics keys are rejected as param names (D4 scratch injection)', () => {
