@@ -288,6 +288,19 @@ function focusReorderButton(index, dir) {
 }
 
 /**
+ * After a visibility toggle rebuilds the list, restore focus to the same
+ * layer's eye toggle. Same rationale as focusReorderButton — the LAYER
+ * subscription tears the row down synchronously. (F: layer-hide-and-fps-dismiss S01.)
+ *
+ * @param {number} index
+ */
+function focusVisButton(index) {
+  if (!layerListEl) return
+  const btn = layerListEl.querySelector('[data-vis="' + index + '"]')
+  if (btn instanceof HTMLButtonElement) btn.focus({ preventScroll: true })
+}
+
+/**
  * After a delete rebuilds the list, focus the delete button now at `index`,
  * or — if only one layer remains (its ✕ is disabled) — focus that layer's
  * body button instead. (F: governor-reorder-and-export SESSION-02.)
@@ -325,11 +338,15 @@ function renderLayers(c) {
 
     const isTop = i === 0
     const isBottom = i === layers.length - 1
+    const hidden = layer.visible === false
     const roleClass = ROLE_DOT_CLASS[mod.meta.role] ?? ''
     const blendLabel = blendName(layer.blend)
     const opPct = Math.round(((layer.opacity.min + layer.opacity.max) / 2) * 100)
+    // Non-colour state signal (a11y): meta line reads "Hidden \u00b7" when hidden.
+    const metaRest = mod.meta.role.charAt(0).toUpperCase() + mod.meta.role.slice(1) + ' \u00b7 ' + blendLabel + ' blend \u00b7 ' + opPct + '%'
+    const metaText = hidden ? COMPOSITION.layerHidden + ' \u00b7 ' + metaRest : metaRest
 
-    const li = el('li', { class: 'layer' }, [
+    const li = el('li', { class: hidden ? 'layer layer--hidden' : 'layer' }, [
       el('button', {
         class: 'layer__body',
         'aria-label': mod.meta.name + ' \u2014 Edit',
@@ -339,7 +356,7 @@ function renderLayers(c) {
           el('span', { class: 'role-dot ' + roleClass, 'aria-hidden': 'true' }),
           document.createTextNode(' ' + mod.meta.name),
         ]),
-        el('span', { class: 'layer__meta', text: mod.meta.role.charAt(0).toUpperCase() + mod.meta.role.slice(1) + ' \u00b7 ' + blendLabel + ' blend \u00b7 ' + opPct + '%' }),
+        el('span', { class: 'layer__meta', text: metaText }),
       ]),
       el('div', { class: 'layer__order' }, [
         el('button', {
@@ -357,6 +374,26 @@ function renderLayers(c) {
           disabled: isBottom,
           text: '\u25BC',
           on: { click: () => { if (actions.reorderLayer(i, 1)) focusReorderButton(i + 1, 'down') } },
+        }),
+      ]),
+      // Eye toggle (layer-hide-and-fps-dismiss S01). Flipping aria-label is
+      // the accessible state \u2014 no aria-pressed (pressed + flipping label
+      // double-signals). Hiding the last visible layer is allowed: FR-5's
+      // 1-layer floor governs existence, not visibility.
+      el('div', { class: 'layer__order' }, [
+        el('button', {
+          class: 'btn',
+          'aria-label': fmt(hidden ? COMPOSITION.showLayer : COMPOSITION.hideLayer, { name: mod.meta.name }),
+          'data-vis': String(i),
+          text: hidden ? '\u25CE' : '\u25C9', // \u25CE hidden \u00b7 \u25C9 visible
+          on: {
+            click: () => {
+              // publish() is synchronous \u2014 the list has re-rendered by the
+              // time this returns, so refocus lands on the new button.
+              actions.setLayerVisible(i, hidden)
+              focusVisButton(i)
+            },
+          },
         }),
       ]),
       el('div', { class: 'layer__order' }, [

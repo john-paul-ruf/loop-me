@@ -221,3 +221,97 @@ suite('panel/reorder-context', () => {
     } finally { unmountPanel(root, prev) }
   })
 })
+
+// ---------------------------------------------------------------------------
+// layer-hide-and-fps-dismiss SESSION-01 — eye toggle on the layer row.
+// ---------------------------------------------------------------------------
+
+suite('panel/eye-toggle (S01)', () => {
+  test('every row carries a [data-vis] toggle whose aria-label starts with "Hide "', () => {
+    const { root, prev } = mountPanel()
+    try {
+      const cards = root.querySelectorAll('.layer')
+      assert(cards.length >= 1, 'at least one card')
+      for (const card of cards) {
+        const btn = card.querySelector('[data-vis]')
+        assert(btn instanceof HTMLButtonElement, 'each row has a [data-vis] button')
+        const label = btn.getAttribute('aria-label') ?? ''
+        assert(label.startsWith('Hide '), 'starts with "Hide ": ' + label)
+      }
+    } finally { unmountPanel(root, prev) }
+  })
+
+  test('clicking hides the layer: state, class, meta, label all flip', () => {
+    const { root, prev } = mountPanel()
+    try {
+      const c = state.composition
+      assert(c !== null, 'composition present')
+      const vis = /** @type {HTMLButtonElement} */ (root.querySelectorAll('[data-vis]')[0])
+      vis.click()
+      assertEq(c.layers[0].visible, false, 'state now hidden')
+      const row = root.querySelectorAll('.layer')[0]
+      assert(row.classList.contains('layer--hidden'), 'row has layer--hidden')
+      const meta = row.querySelector('.layer__meta')
+      assert(meta !== null && (meta.textContent ?? '').includes('Hidden'), 'meta text contains Hidden')
+      const relabelled = /** @type {HTMLButtonElement} */ (root.querySelectorAll('[data-vis]')[0])
+      const label2 = relabelled.getAttribute('aria-label') ?? ''
+      assert(label2.startsWith('Show '), 'aria-label flipped to Show: ' + label2)
+    } finally { unmountPanel(root, prev) }
+  })
+
+  test('clicking again restores visible: true', () => {
+    const { root, prev } = mountPanel()
+    try {
+      const c = state.composition
+      assert(c !== null, 'composition present')
+      const vis1 = /** @type {HTMLButtonElement} */ (root.querySelectorAll('[data-vis]')[0])
+      vis1.click()
+      assertEq(c.layers[0].visible, false, 'first click hides')
+      const vis2 = /** @type {HTMLButtonElement} */ (root.querySelectorAll('[data-vis]')[0])
+      vis2.click()
+      assertEq(c.layers[0].visible, true, 'second click restores')
+      const row = root.querySelectorAll('.layer')[0]
+      assert(!row.classList.contains('layer--hidden'), 'row no longer hidden')
+    } finally { unmountPanel(root, prev) }
+  })
+
+  test('undo restores the previous visibility', () => {
+    const { root, prev } = mountPanel()
+    try {
+      const c = state.composition
+      assert(c !== null, 'composition present')
+      assertEq(c.layers[0].visible, true, 'starts visible')
+      const vis = /** @type {HTMLButtonElement} */ (root.querySelectorAll('[data-vis]')[0])
+      vis.click()
+      assertEq(state.composition?.layers[0].visible, false)
+      actions.undo()
+      assertEq(state.composition?.layers[0].visible, true, 'undo restores visible')
+    } finally { unmountPanel(root, prev) }
+  })
+
+  test('focus follows the same layer\'s [data-vis] button after toggle', () => {
+    const { root, prev } = mountPanel()
+    try {
+      const vis = /** @type {HTMLButtonElement} */ (root.querySelectorAll('[data-vis]')[0])
+      vis.click()
+      const active = document.activeElement
+      assert(active instanceof HTMLButtonElement, 'active is a button')
+      assertEq(active.getAttribute('data-vis'), '0', 'focus lands on the same layer\'s eye toggle')
+    } finally { unmountPanel(root, prev) }
+  })
+
+  test('the S07 reorder pin (▲▼ filter) and S03 danger count are unaffected', () => {
+    const { root, prev } = mountPanel()
+    try {
+      // S07 ▲▼ pin: filter buttons by aria-label matching /Move .+ (up|down)/
+      const moveBtns = [...root.querySelectorAll('.layer__order .btn')]
+        .filter((b) => /Move .+ (up|down)/.test(b.getAttribute('aria-label') || ''))
+      assert(moveBtns.length >= 2, 'reorder arrows still counted')
+      // S03 delete pin: exactly one .btn--danger per card
+      const cards = root.querySelectorAll('.layer')
+      for (const card of cards) {
+        assertEq(card.querySelectorAll('.btn--danger').length, 1, 'one ✕ per card')
+      }
+    } finally { unmountPanel(root, prev) }
+  })
+})

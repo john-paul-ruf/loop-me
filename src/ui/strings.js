@@ -136,6 +136,12 @@ export const COMPOSITION = {
   addLayer: 'Add layer',
   /** `{name}` → layer display name */
   deleteLayer: 'Delete {name}',
+  /** `{name}` → layer name */
+  hideLayer: 'Hide {name}',
+  /** `{name}` → layer name */
+  showLayer: 'Show {name}',
+  /** Meta-line prefix on a hidden layer's row. */
+  layerHidden: 'Hidden',
   seedField: 'Seed',
   gallery: 'Gallery',
   pasteSeed: 'Paste seed',

@@ -84,6 +84,12 @@
 /* li.layer style="border-color:var(--accent);background:var(--accent-soft)" */
 .layer--selected { border-color: var(--accent); background: var(--accent-soft); }
 
+/* Hidden layer (layer-hide-and-fps-dismiss S01): dimmed but fully operable.
+   State is never colour alone — the meta line reads "Hidden ·" and the eye
+   glyph flips ◉→◎. Base .layer is _tokens.css §-verbatim; the modifier
+   lives here per the FORGE-CONFIG convention. */
+.layer--hidden .layer__body { opacity: .45; }
+
 /* Reorder buttons disable at the ends rather than going silently inert
    (design §6). Disabled styling comes from _tokens.css §5. */
 
