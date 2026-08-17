@@ -1,16 +1,16 @@
 // @ts-check
 /**
  * Pins the two append-only ID spaces: blend modes (7 entries) and layer types
- * (47 across the D4, double-catalog, glitch-effects, omni-wave glitch W2, and
- * omni-wave primary W3 waves — the catalog IDs 1–47 pin below is live, per
- * architecture §5.3 step 3).
+ * (up to 52 across the D4, double-catalog, glitch-effects, omni-wave glitch
+ * W2, omni-wave primary W3, and omni-wave secondary W3 waves — the catalog
+ * pin below is live, per architecture §5.3 step 3).
  *
  * The earlier layer-type assertions are written as invariants that held at
  * every point of the build; the wave suites append literal pins: exact IDs,
  * names, roles, and the §10.2 worstCase table row by row. Test suites also
  * register synthetic types (IDs ≥ 900 by convention), so the catalog pins
- * filter to id ≤ 47 — the omni-wave primary W3 frontier; S03/S04 chain
- * sessions push it out to 52 and 57 with the secondary and overlay waves.
+ * filter to id ≤ 52 — the omni-wave secondary W3 frontier; the S04 chain
+ * session pushes it out to 57 with the overlay wave.
  */
 
 import { suite, test, assert, assertEq, assertThrows } from './harness.js'
@@ -214,37 +214,45 @@ suite('registry — layer type catalog (architecture §5.3, §8.2)', () => {
 // D4 — the catalog frontier. Literal pins from here down.
 // The frontier bumps as each omni-wave chain session (S01–S04) lands its
 // ID block: 42 → 47 → 52 → 57. Synthetic test types stay at IDs ≥ 900.
-// The filter is set at each chain session's ceiling: S02 → 47.
+// The filter is set at each chain session's ceiling: S03 → 52.
 // ---------------------------------------------------------------------------
 
 /** The real catalog, without any suite's synthetic types. */
 function catalog() {
-  return list().filter((m) => m.meta.id <= 47)
+  return list().filter((m) => m.meta.id <= 52)
 }
 
-suite('registry — the 47-type catalog pin (architecture §8.2, FR-6)', () => {
-  test('exactly types 1–47, in ID order, names pinned', () => {
+/**
+ * The name-order pin grows one wave at a time. Entries beyond the current
+ * frontier are appended by the session that lands the ID block; the count
+ * assertion below tracks `NAMES.length`, so a checkpoint that adds two
+ * layers and two names stays green without touching the loop bound.
+ */
+const NAMES = [
+  'Ray Rings', 'Nth Rings', 'Layered Poly', 'Encircled Spiral',
+  'Petal Bloom', 'Orbit Dots', 'Arc Gates',
+  'Line Field', 'Moiré Grid', 'Grid Pulse', 'Sine Ribbons', 'Crosshatch',
+  'Fuzz Flare', 'Scan Lines', 'Vignette Wash', 'Grain',
+  'Spiral Web', 'Nested Squares', 'Sunburst',
+  'Pulse Rings', 'Burst Star', 'Ribbon Coil',
+  'Prism Shard', 'Checker Wave', 'Stipple Field',
+  'Lattice Weave', 'Concentric Waves', 'Triangulation',
+  'Light Leak', 'Soft Tint', 'Dot Haze',
+  'Stripe Sweep',
+  'Slice Shift', 'RGB Split', 'Block Static', 'Sync Roll',
+  'Mirror Fold', 'Interlace Comb', 'Zoom Echo',
+  'Smear Streak', 'Ghost Double', 'Contrast Crush',
+  'Lissajous Weave', 'Rose Curve', 'Epicycle Chain',
+  'Star Polygon', 'Superellipse Stack',
+  'Hex Lattice', 'Truchet Tiles',
+]
+
+suite(`registry — the ${NAMES.length}-type catalog pin (architecture §8.2, FR-6)`, () => {
+  test(`exactly types 1–${NAMES.length}, in ID order, names pinned`, () => {
     // Changing a line here silently orphans every seed that stores the ID.
-    const NAMES = [
-      'Ray Rings', 'Nth Rings', 'Layered Poly', 'Encircled Spiral',
-      'Petal Bloom', 'Orbit Dots', 'Arc Gates',
-      'Line Field', 'Moiré Grid', 'Grid Pulse', 'Sine Ribbons', 'Crosshatch',
-      'Fuzz Flare', 'Scan Lines', 'Vignette Wash', 'Grain',
-      'Spiral Web', 'Nested Squares', 'Sunburst',
-      'Pulse Rings', 'Burst Star', 'Ribbon Coil',
-      'Prism Shard', 'Checker Wave', 'Stipple Field',
-      'Lattice Weave', 'Concentric Waves', 'Triangulation',
-      'Light Leak', 'Soft Tint', 'Dot Haze',
-      'Stripe Sweep',
-      'Slice Shift', 'RGB Split', 'Block Static', 'Sync Roll',
-      'Mirror Fold', 'Interlace Comb', 'Zoom Echo',
-      'Smear Streak', 'Ghost Double', 'Contrast Crush',
-      'Lissajous Weave', 'Rose Curve', 'Epicycle Chain',
-      'Star Polygon', 'Superellipse Stack',
-    ]
     const cat = catalog()
-    assertEq(cat.length, 47, 'the catalog holds exactly 47 types')
-    for (let i = 0; i < 47; i++) {
+    assertEq(cat.length, NAMES.length, `the catalog holds exactly ${NAMES.length} types`)
+    for (let i = 0; i < NAMES.length; i++) {
       assertEq(cat[i].meta.id, i + 1, `position ${i} carries ID ${i + 1}`)
       assertEq(cat[i].meta.name, NAMES[i], `ID ${i + 1} name`)
     }
@@ -256,7 +264,8 @@ suite('registry — the 47-type catalog pin (architecture §8.2, FR-6)', () => {
         m.meta.id <= 7 ? 'primary' : m.meta.id <= 12 ? 'secondary' : m.meta.id <= 16 ? 'overlay'
         : m.meta.id <= 23 ? 'primary' : m.meta.id <= 28 ? 'secondary' : m.meta.id <= 32 ? 'overlay'
         : m.meta.id <= 42 ? 'glitch'
-        : 'primary'  // 43–47: omni-wave primary W3
+        : m.meta.id <= 47 ? 'primary'   // 43–47: omni-wave primary W3
+        : 'secondary'                    // 48–52: omni-wave secondary W3
       assertEq(m.meta.role, want, `type ${m.meta.id} role`)
     }
   })
@@ -289,6 +298,8 @@ suite('registry — the 47-type catalog pin (architecture §8.2, FR-6)', () => {
       45: [740, 3],
       46: [40, 3],
       47: [1460, 8],
+      48: [2900, 6],
+      49: [560, 2],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -314,7 +325,7 @@ suite('registry — the 47-type catalog pin (architecture §8.2, FR-6)', () => {
     // which is exactly why B1 deferred this test until the catalog existed.
     assertThrows(() => register(one), 'duplicate ID must be rejected')
     assertEq(get(1), one, 'the original module is still registered')
-    assertEq(catalog().length, 47, 'catalog unchanged')
+    assertEq(catalog().length, NAMES.length, 'catalog unchanged')
   })
 
   test('the reserved statics keys are rejected as param names (D4 scratch injection)', () => {
@@ -391,6 +402,34 @@ suite('registry — omni-wave primary W3 pin (IDs 43–47)', () => {
       assertEq(mod.meta.worstCase.pathOps, row.pathOps, 'pathOps')
       assertEq(mod.meta.worstCase.drawCalls, row.drawCalls, 'drawCalls')
       assertEq(mod.meta.fullCanvasOpaque, false, 'closed-curve primaries never claim full-canvas opacity')
+    })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// omni-wave secondary W3 — literal per-type pins for IDs 48–52.
+// Same pinning shape as the primary W3 suite above (id, name, role,
+// worstCase as separate row assertions). All are role: 'secondary' —
+// full-frame field textures closing loops via radial-wave phase wrap,
+// dash-phase advance, or ring-advance families.
+// ---------------------------------------------------------------------------
+
+suite('registry — omni-wave secondary W3 pin (IDs 48–52)', () => {
+  /** @type {Array<{id: number, name: string, role: string, pathOps: number, drawCalls: number}>} */
+  const ROWS = [
+    { id: 48, name: 'Hex Lattice',    role: 'secondary', pathOps: 2900, drawCalls: 6 },
+    { id: 49, name: 'Truchet Tiles',  role: 'secondary', pathOps: 560,  drawCalls: 2 },
+  ]
+  for (const row of ROWS) {
+    test(`type ${row.id} ${row.name} — id, name, role, worstCase`, () => {
+      const mod = get(row.id)
+      assert(mod !== null, `type ${row.id} must be registered`)
+      assertEq(mod.meta.id, row.id, 'id')
+      assertEq(mod.meta.name, row.name, 'name')
+      assertEq(mod.meta.role, row.role, 'role')
+      assertEq(mod.meta.worstCase.pathOps, row.pathOps, 'pathOps')
+      assertEq(mod.meta.worstCase.drawCalls, row.drawCalls, 'drawCalls')
+      assertEq(mod.meta.fullCanvasOpaque, false, 'secondary field textures never claim full-canvas opacity')
     })
   }
 })
