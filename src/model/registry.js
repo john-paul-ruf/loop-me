@@ -65,9 +65,9 @@ import * as stripeSweep from '../layers/stripe-sweep.js'
  * @property {(ctx: CanvasRenderingContext2D, resolved: Resolved, prepared: Prepared, palette: Palette) => void} draw
  */
 
-/** The three layer roles, in catalog order (FR-6). */
+/** The four layer roles, in catalog order (FR-6). */
 export const ROLES = Object.freeze(
-  /** @type {readonly ('primary'|'secondary'|'overlay')[]} */ (['primary', 'secondary', 'overlay']),
+  /** @type {readonly ('primary'|'secondary'|'overlay'|'glitch')[]} */ (['primary', 'secondary', 'overlay', 'glitch']),
 )
 
 const ROLE_SET = new Set(ROLES)

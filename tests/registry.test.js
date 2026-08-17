@@ -244,7 +244,8 @@ suite('registry — the 32-type catalog pin (architecture §8.2, FR-6)', () => {
     for (const m of catalog()) {
       const want =
         m.meta.id <= 7 ? 'primary' : m.meta.id <= 12 ? 'secondary' : m.meta.id <= 16 ? 'overlay'
-        : m.meta.id <= 23 ? 'primary' : m.meta.id <= 28 ? 'secondary' : 'overlay'
+        : m.meta.id <= 23 ? 'primary' : m.meta.id <= 28 ? 'secondary' : m.meta.id <= 32 ? 'overlay'
+        : 'glitch'
       assertEq(m.meta.role, want, `type ${m.meta.id} role`)
     }
   })

@@ -89,7 +89,7 @@
  * @typedef {object} LayerMeta
  * @property {number} id        Stable, append-only, never reused (architecture §8.2).
  * @property {string} name      Catalog name, e.g. 'Arc Gates'.
- * @property {'primary'|'secondary'|'overlay'} role
+ * @property {'primary'|'secondary'|'overlay'|'glitch'} role
  * @property {string} blurb     One line, shown on the type card in add-layer.
  * @property {{pathOps: number, drawCalls: number}} worstCase  Must match architecture §10.2.
  * @property {boolean} fullCanvasOpaque  Consumed by the randomizer's taste rules (§8.5).
