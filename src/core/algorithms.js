@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * The 20 loop-safe oscillation algorithms (FR-3, architecture §8.1).
+ * The 24 loop-safe oscillation algorithms (FR-3, architecture §8.1).
  *
  * Each algorithm is a **periodic shape function** of a normalized cycle
  * position `u ∈ [0, 1)`, returning a normalized amplitude in `[0, 1]`.
@@ -108,7 +108,7 @@ function bump(u, c, w) {
 }
 
 // ---------------------------------------------------------------------------
-// The 20 shape functions
+// The 24 shape functions
 //
 // Each takes `u ∈ [0, 1)` and returns an un-normalized amplitude. Range is
 // fixed by the load-time scan below, so a shape is free to peak wherever its
@@ -250,6 +250,45 @@ function butterfly(u) {
   )
 }
 
+/**
+ * 20 — a smoothed staircase riding the journey: rise in steps, fall in steps.
+ * @param {number} u
+ * @returns {number}
+ */
+function staccatoSteps(u) {
+  const s = 4
+  const j = journey(u) * s
+  const step = Math.floor(j)
+  return (step + smoother(j - step)) / s
+}
+
+/**
+ * 21 — three swings under one swell, each softer than the last half.
+ * @param {number} u
+ * @returns {number}
+ */
+function pendulum(u) {
+  return Math.abs(Math.sin(3 * Math.PI * u)) * journey(u)
+}
+
+/**
+ * 22 — two lobes, big then small: a figure-eight's near and far pass.
+ * @param {number} u
+ * @returns {number}
+ */
+function figureEight(u) {
+  return journey(2 * u) * (0.65 + 0.35 * Math.sin(TAU * u))
+}
+
+/**
+ * 23 — a single swell with a fine shiver riding it.
+ * @param {number} u
+ * @returns {number}
+ */
+function tremor(u) {
+  return journey(u) * (0.82 + 0.18 * Math.cos(12 * TAU * u))
+}
+
 // ---------------------------------------------------------------------------
 // The registry — APPEND ONLY
 // ---------------------------------------------------------------------------
@@ -316,6 +355,10 @@ export const ALGORITHMS = Object.freeze([
   Object.freeze({ id: 17, name: 'mountainRange', fn: mountainRange, phase: 0.506578 }),
   Object.freeze({ id: 18, name: 'oceanTide', fn: oceanTide, phase: 0.124612 }),
   Object.freeze({ id: 19, name: 'butterfly', fn: butterfly, phase: 0.742646 }),
+  Object.freeze({ id: 20, name: 'staccatoSteps', fn: staccatoSteps, phase: 0.36068 }),
+  Object.freeze({ id: 21, name: 'pendulum', fn: pendulum, phase: 0.978714 }),
+  Object.freeze({ id: 22, name: 'figureEight', fn: figureEight, phase: 0.596748 }),
+  Object.freeze({ id: 23, name: 'tremor', fn: tremor, phase: 0.214782 }),
 ])
 
 /** How many algorithms exist. Grows; never shrinks. */

@@ -43,10 +43,14 @@ const PINNED = [
   'mountainRange',
   'oceanTide',
   'butterfly',
+  'staccatoSteps',
+  'pendulum',
+  'figureEight',
+  'tremor',
 ]
 
 suite('algorithms — registry', () => {
-  test('all 20 are present, in the pinned order', () => {
+  test('all 24 are present, in the pinned order', () => {
     assert(ALGORITHM_COUNT >= PINNED.length, `expected at least ${PINNED.length} algorithms`)
     for (let i = 0; i < PINNED.length; i++) {
       assertEq(ALGORITHMS[i].name, PINNED[i], `algorithm ${i} name`)
