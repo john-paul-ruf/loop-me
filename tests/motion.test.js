@@ -143,7 +143,10 @@ suite('motion — lookups', () => {
   test('characterByIndex', () => {
     assertEq(characterByIndex(0)?.name, 'Calm')
     assertEq(characterByIndex(5)?.name, 'Chaotic')
-    assertEq(characterByIndex(6), null)
+    assertEq(characterByIndex(6)?.name, 'Staccato')
+    assertEq(characterByIndex(7)?.name, 'Drift')
+    // Out-of-range is length-derived so a future character grows without a pin churn
+    assertEq(characterByIndex(CHARACTER_COUNT), null)
     assertEq(characterByIndex(-1), null)
   })
 })
