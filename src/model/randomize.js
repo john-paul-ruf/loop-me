@@ -12,7 +12,13 @@
  * loop is non-deterministic in length and can deadlock on a degenerate input):
  *
  * 1. **Role quotas**: 1–2 primary, 0–2 secondary, 0–2 overlay, total 2–5
- *    (or 2–3 when the governor is warned). Enforced by construction.
+ *    (or 2–3 when the governor is warned). Glitch is seasoning on top of that
+ *    — 0 or 1, and only when the stack has at least 3 layers total, only when
+ *    the governor has NOT warned (a full-canvas self-blit is the wrong medicine
+ *    for a struggling frame), and only if `byRole('glitch')` is non-empty
+ *    (`core/rng.js` `pick()` throws on `[]`). Enforced by construction; when
+ *    present, glitch is appended LAST so it sits atop the finished frame —
+ *    index 0 is structurally impossible for it (see rule 3).
  * 2. **At most one `fullCanvasOpaque` layer**: when picking overlay types, if
  *    an opaque layer is already in the stack, filter the pool to exclude opaque
  *    types. All 16 current types are `false`, so this is vacuous today but
@@ -25,11 +31,13 @@
  *    resolved canvas background. The randomizer draws from the `c` and `n`
  *    buckets only (never `b`), and repairs any residual collision.
  * 5. **Flash safety (FR-17)**: full-canvas opacity params on additive/screen
- *    **overlay** layers get `times ≤ 2`. Since the randomizer cannot know which
- *    declared params drive full-canvas alpha (that knowledge lives in `draw`),
- *    the conservative approach caps **every** A param's `times` to ≤ 2 on
- *    additive/screen overlay layers — including the envelope opacity. At
- *    `times` 2 on a 5 s loop, that is 0.4 Hz, well below the 3 Hz ceiling.
+ *    **overlay** and **glitch** layers get `times ≤ 2`. Since the randomizer
+ *    cannot know which declared params drive full-canvas alpha (that knowledge
+ *    lives in `draw`), the conservative approach caps **every** A param's
+ *    `times` to ≤ 2 on additive/screen overlay/glitch layers — including the
+ *    envelope opacity. Glitch is a self-blit of the composited frame, so its
+ *    strobing is still strobing. At `times` 2 on a 5 s loop, that is 0.4 Hz,
+ *    well below the 3 Hz ceiling.
  *
  * ## `Math.random()` — sole entropy source, confined to this module
  *
@@ -39,6 +47,16 @@
  * neither is on the seed-**decode** path, so FR-4's cross-device determinism of
  * shared seeds is unaffected. Everything downstream of the drawn uint32 seed is
  * `mulberry32`-deterministic.
+ *
+ * The composition-level rng stream draws in a fixed order — durationId,
+ * scheme, total, then (conditionally, when non-warned + total ≥ 3 + a
+ * non-empty glitch pool) the `wantGlitch` gate, then primary/secondary/overlay
+ * type and layer draws. Adding the `wantGlitch` draw here shifted the stream
+ * for the non-warned + total ≥ 3 case relative to pre-glitch behaviour; that
+ * is legal (generate() is not on the seed-decode path, so FR-4's shared-seed
+ * determinism is unaffected) but future edits must still respect append-only
+ * ordering within this function to keep future seeds stable if this stream is
+ * ever reused for one.
  *
  * Imports `core/rng.js`, `core/algorithms.js`, `model/registry.js`,
  * `model/composition.js`, `model/schemes.js`, `model/motion.js`,
@@ -235,11 +253,14 @@ function applyLayerTasteRules(layer, i, scheme) {
     else layer.color = 'FF2E88'
   }
 
-  // Rule 5: flash safety — additive/screen overlay layers cap every A param
-  // (incl. envelope opacity) at times ≤ 2 (FR-17).
+  // Rule 5: flash safety — additive/screen overlay AND glitch layers cap
+  // every A param (incl. envelope opacity) at times ≤ 2 (FR-17). Glitch layers
+  // self-blit the composited frame, so their strobing is still strobing.
+  // generateLayer()'s per-layer reroll runs this same function, so a user
+  // choosing glitch and picking additive/screen manually gets capped too.
   const mod = getLayer(layer.type)
   if (mod === null) return
-  if (mod.meta.role !== 'overlay') return
+  if (mod.meta.role !== 'overlay' && mod.meta.role !== 'glitch') return
   if (layer.blend !== BLEND_ADDITIVE && layer.blend !== BLEND_SCREEN) return
   if (layer.opacity.times > 2) layer.opacity.times = 2
   for (const decl of mod.params) {
@@ -292,9 +313,22 @@ export function generate(governorWarned = false) {
   // Role quotas (rule 1): 1–2 primary, 0–2 secondary, 0–2 overlay, total 2–5
   // (or 2–3 when the governor warns).
   const total = intRange(rng, 2, governorWarned ? 3 : 5)
+
+  // Rule 1 extension: glitch is seasoning — 0–1, only in a 3+ stack, never
+  // when the governor warns (full-canvas self-blits are the wrong medicine),
+  // and only if the catalog actually has glitch types (empty-pool guard:
+  // core/rng.js pick() throws on []). The p/s/o split then operates on the
+  // (total - wantGlitch) remainder; glitch is appended LAST so the stack
+  // order is primary → secondary → overlay → glitch (glitch corrupts a
+  // finished frame — index 0 is structurally impossible for it, see rule 3).
+  const glitchPool = byRole('glitch')
+  const wantGlitch =
+    !governorWarned && total >= 3 && glitchPool.length > 0 && rng() < 0.35 ? 1 : 0
+  const psoTotal = total - wantGlitch
+
   let primaryCount = intRange(rng, 1, 2)
-  if (primaryCount > total) primaryCount = total
-  let remaining = total - primaryCount
+  if (primaryCount > psoTotal) primaryCount = psoTotal
+  let remaining = psoTotal - primaryCount
   let secondaryCount = intRange(rng, 0, Math.min(2, remaining))
   let overlayCount = remaining - secondaryCount
   if (overlayCount > 2) {
@@ -303,7 +337,8 @@ export function generate(governorWarned = false) {
   }
 
   // Build layer list: primary first (structure), then secondary (texture),
-  // then overlay (mood). This ordering is the draw order (index 0 = bottom).
+  // then overlay (mood), then optional glitch (frame corruption). This
+  // ordering is the draw order (index 0 = bottom).
   const primTypes = byRole('primary')
   const secTypes = byRole('secondary')
   const ovlTypes = byRole('overlay')
@@ -340,6 +375,13 @@ export function generate(governorWarned = false) {
   }
   for (let i = 0; i < overlayCount; i++) {
     layers.push(makeLayer(rng, pickType(ovlTypes), scheme, layers.length))
+  }
+  if (wantGlitch === 1) {
+    // Glitch is always LAST (rule 1 extension) — it self-samples the
+    // composited frame beneath it. pickType keeps the rule-2 opaque tally
+    // honest for future opaque glitch types (all four current types have
+    // fullCanvasOpaque: false).
+    layers.push(makeLayer(rng, pickType(glitchPool), scheme, layers.length))
   }
 
   // Post-generation taste rules (rules 4 and 5; rule 3 belt-and-suspenders)

@@ -168,23 +168,63 @@ suite('randomize — variety (FR-9 AC)', () => {
 // ---------------------------------------------------------------------------
 
 suite('randomize — taste rule 1: role quotas (§8.5)', () => {
-  test('every generate() has 1–2 primary, 0–2 secondary, 0–2 overlay, total 2–5', () => {
+  test('every generate() has 1–2 primary, 0–2 secondary, 0–2 overlay, 0–1 glitch, total 2–5', () => {
     for (let i = 0; i < 200; i++) {
       const c = generate()
-      let p = 0, s = 0, o = 0
+      let p = 0, s = 0, o = 0, g = 0
       for (const layer of c.layers) {
         const mod = list().find((m) => m.meta.id === layer.type)
         if (!mod) continue
         if (mod.meta.role === 'primary') p++
         else if (mod.meta.role === 'secondary') s++
         else if (mod.meta.role === 'overlay') o++
+        else if (mod.meta.role === 'glitch') g++
       }
+      // p/s/o quotas are asserted over the NON-glitch remainder — the glitch
+      // seat is a fourth budget line, not one that eats into p/s/o's bounds.
       assert(p >= 1 && p <= 2, `generate() #${i}: ${p} primary, expected 1–2`)
       assert(s >= 0 && s <= 2, `generate() #${i}: ${s} secondary, expected 0–2`)
       assert(o >= 0 && o <= 2, `generate() #${i}: ${o} overlay, expected 0–2`)
+      assert(g >= 0 && g <= 1, `generate() #${i}: ${g} glitch, expected 0–1`)
       assert(c.layers.length >= 2 && c.layers.length <= 5,
         `generate() #${i}: ${c.layers.length} total, expected 2–5`)
     }
+  })
+
+  test('when a glitch layer is present it is last, at index ≥ 2, ≥ 2 non-glitch below', () => {
+    // Glitch fires at ~35% in 3+-layer stacks; 300 runs makes at least one
+    // occurrence overwhelmingly likely. This test also pins "never twice" —
+    // exactly one glitch per composition when any is present.
+    let sawGlitch = false
+    for (let i = 0; i < 300; i++) {
+      const c = generate()
+      let glitchIndex = -1
+      let glitchCount = 0
+      for (let j = 0; j < c.layers.length; j++) {
+        const mod = list().find((m) => m.meta.id === c.layers[j].type)
+        if (mod && mod.meta.role === 'glitch') {
+          glitchIndex = j
+          glitchCount++
+        }
+      }
+      if (glitchCount === 0) continue
+      sawGlitch = true
+      assert(glitchCount === 1,
+        `generate() #${i}: ${glitchCount} glitch layers — glitch is 0–1 per composition`)
+      assert(glitchIndex === c.layers.length - 1,
+        `generate() #${i}: glitch at index ${glitchIndex}, expected last (${c.layers.length - 1})`)
+      assert(glitchIndex >= 2,
+        `generate() #${i}: glitch at index ${glitchIndex}, expected ≥ 2 (≥ 2 non-glitch below)`)
+      let nonGlitchBelow = 0
+      for (let j = 0; j < glitchIndex; j++) {
+        const mod = list().find((m) => m.meta.id === c.layers[j].type)
+        if (!mod || mod.meta.role !== 'glitch') nonGlitchBelow++
+      }
+      assert(nonGlitchBelow >= 2,
+        `generate() #${i}: only ${nonGlitchBelow} non-glitch layers below the glitch`)
+    }
+    assert(sawGlitch,
+      'no glitch layer appeared in 300 randomize runs — the quota may be broken')
   })
 
   test('governor warned mode produces 2–3 layers', () => {
@@ -192,6 +232,19 @@ suite('randomize — taste rule 1: role quotas (§8.5)', () => {
       const c = generate(true)
       assert(c.layers.length >= 2 && c.layers.length <= 3,
         `warned generate() #${i}: ${c.layers.length} layers, expected 2–3`)
+    }
+  })
+
+  test('governor warned mode never emits a glitch layer', () => {
+    // Rule 1 extension: glitch is excluded when the governor has warned —
+    // self-blitting a full frame is the wrong response to a struggling loop.
+    for (let i = 0; i < 200; i++) {
+      const c = generate(true)
+      for (const layer of c.layers) {
+        const mod = list().find((m) => m.meta.id === layer.type)
+        assert(!mod || mod.meta.role !== 'glitch',
+          `warned generate() #${i}: emitted a glitch layer`)
+      }
     }
   })
 
@@ -310,6 +363,40 @@ suite('randomize — taste rule 5: flash safety (FR-17 ≤ 3 Hz)', () => {
         }
       }
     }
+  })
+
+  test('additive/screen glitch layers have times ≤ 2 on every A param', () => {
+    // Rule 5 extension: glitch is a self-blit of the composited frame, so its
+    // strobing is still strobing — same cap as additive/screen overlays.
+    // Expected hit rate per run ≈ P(glitch) · P(blend ∈ add/screen) ≈
+    // 0.26 · 0.40 ≈ 0.10, so 500 runs land ~50 samples: the sawAny sanity
+    // pin passes overwhelmingly if the cap is actually running.
+    let sawAny = false
+    for (let i = 0; i < 500; i++) {
+      const c = generate()
+      for (const layer of c.layers) {
+        const mod = list().find((m) => m.meta.id === layer.type)
+        if (!mod || mod.meta.role !== 'glitch') continue
+        if (layer.blend !== BLEND_ADDITIVE && layer.blend !== BLEND_SCREEN) continue
+        sawAny = true
+
+        // Envelope opacity
+        assert(layer.opacity.times <= 2,
+          `generate() #${i}: additive/screen glitch opacity times ${layer.opacity.times} > 2`)
+
+        // Declared A params
+        for (const decl of mod.params) {
+          if (decl.kind !== 'A') continue
+          const av = /** @type {AnimValue} */ (layer.params[decl.name])
+          if (typeof av === 'object' && av !== null) {
+            assert(av.times <= 2,
+              `generate() #${i}: additive/screen glitch param "${decl.name}" times ${av.times} > 2`)
+          }
+        }
+      }
+    }
+    assert(sawAny,
+      'no additive/screen glitch layer appeared in 500 randomize runs — cap coverage unproven')
   })
 
   test('non-additive overlay layers can have times > 2 (rule only applies to additive/screen)', () => {
