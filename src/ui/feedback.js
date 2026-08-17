@@ -96,9 +96,12 @@ export function toastKey(key) {
  * @param {string} body
  * @param {BannerLevel} level
  * @param {boolean} [dismissible=true]
+ * @param {() => void} [onDismiss] Called after the user removes the banner
+ *   via its \u2715 \u2014 lets the owner clear its handle/bookkeeping. Not called on
+ *   programmatic removal.
  * @returns {HTMLElement} The banner element (for programmatic removal).
  */
-export function banner(title, body, level, dismissible = true) {
+export function banner(title, body, level, dismissible = true, onDismiss) {
   if (!feedbackMount) return /** @type {HTMLElement} */ (null)
 
   const cls = level === 'warn'
@@ -125,7 +128,12 @@ export function banner(title, body, level, dismissible = true) {
         class: 'btn btn--icon btn--sm',
         'aria-label': 'Dismiss',
         text: '\u2715',
-        on: { click: () => { /** @type {HTMLElement} */ (node).remove() } },
+        on: {
+          click: () => {
+            /** @type {HTMLElement} */ (node).remove()
+            if (onDismiss) onDismiss()
+          },
+        },
       }),
     )
   }
@@ -222,10 +230,26 @@ function handleReport(r) {
 
 // ---------------------------------------------------------------------------
 // Governor banner (FR-15)
+//
+// Per-episode dismiss semantics (layer-hide-and-fps-dismiss SESSION-02):
+// the ✕ hides the banner for the current hot episode only. When the governor
+// leaves WARN (`state.governorWarned → false`) the latch resets, so a new
+// hot episode warns again. FR-15's purpose — the user finds out the piece
+// is heavy — survives; the banner just stops being un-closable.
+//
+// Add-layer stays governor-disabled while `state.governorWarned` is true
+// independently of the banner (see composition panel + strings.js
+// `addLayerBlocked`); dismissing the banner does NOT re-enable Add-layer.
 // ---------------------------------------------------------------------------
 
 /** @type {BannerHandle | null} */
 let governorBanner = null
+/**
+ * True from the moment the user dismisses the governor banner until the
+ * governor leaves WARN. One hot episode = at most one banner (FR-15 ext);
+ * a new episode warns again.
+ */
+let governorDismissed = false
 
 /**
  * Handle the governor topic — show or hide the warning banner.
@@ -235,7 +259,7 @@ let governorBanner = null
 function handleGovernor(...args) {
   const warned = state.governorWarned
 
-  if (warned && !governorBanner) {
+  if (warned && !governorBanner && !governorDismissed) {
     // The governor publishes (true/false, fps). Use the fps from the
     // publish args if available; fall back to 42 (the mock's placeholder).
     const fps = args.length > 1 && typeof args[1] === 'number'
@@ -243,7 +267,12 @@ function handleGovernor(...args) {
       : '42'
     const title = GOVERNOR.title
     const body = fmt(GOVERNOR.body, { fps })
-    const node = banner(title, body, 'warn', false)
+    const node = banner(title, body, 'warn', true, () => {
+      // User ✕: drop the handle, latch the episode. The banner stays away
+      // until the governor cools and re-enters WARN.
+      governorBanner = null
+      governorDismissed = true
+    })
     if (node) {
       governorBanner = {
         node,
@@ -254,8 +283,11 @@ function handleGovernor(...args) {
       }
       announce(title)
     }
-  } else if (!warned && governorBanner) {
-    governorBanner.remove()
+  } else if (!warned) {
+    // Episode over — clear any showing banner AND reset the latch so the
+    // next hot episode warns again (FR-15's purpose is intact).
+    if (governorBanner) governorBanner.remove()
+    governorDismissed = false
   }
 }
 
@@ -286,6 +318,7 @@ export function initFeedback(feedbackEl, liveEl) {
   // Clear existing banners from a prior session.
   for (const [, handle] of activeBanners) handle.remove()
   if (governorBanner) governorBanner.remove()
+  governorDismissed = false
 
   feedbackMount = feedbackEl
   liveRegion = liveEl
@@ -305,6 +338,7 @@ export function clearFeedback() {
   if (!feedbackMount) return
   for (const [, handle] of activeBanners) handle.remove()
   if (governorBanner) governorBanner.remove()
+  governorDismissed = false
   while (feedbackMount.firstChild) {
     feedbackMount.removeChild(feedbackMount.firstChild)
   }
