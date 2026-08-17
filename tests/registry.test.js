@@ -1,14 +1,17 @@
 // @ts-check
 /**
  * Pins the two append-only ID spaces: blend modes (7 entries) and layer types
- * (42 across the D4, double-catalog, glitch-effects, and omni-wave glitch W2
- * waves — the catalog IDs 1–42 pin below is live, per architecture §5.3 step 3).
+ * (45 across the D4, double-catalog, glitch-effects, omni-wave glitch W2, and
+ * omni-wave primary W3 waves — the catalog IDs 1–45 pin below is live, per
+ * architecture §5.3 step 3).
  *
  * The earlier layer-type assertions are written as invariants that held at
  * every point of the build; the wave suites append literal pins: exact IDs,
  * names, roles, and the §10.2 worstCase table row by row. Test suites also
  * register synthetic types (IDs ≥ 900 by convention), so the catalog pins
- * filter to id ≤ 42 — the current append-only frontier.
+ * filter to id ≤ 47 — the omni-wave frontier, which the primary/secondary/
+ * overlay chain sessions bump as they land (S02 registered 43–45, S03/S04
+ * append the rest).
  */
 
 import { suite, test, assert, assertEq, assertThrows } from './harness.js'
@@ -212,15 +215,18 @@ suite('registry — layer type catalog (architecture §5.3, §8.2)', () => {
 // D4 — the catalog frontier. Literal pins from here down.
 // The frontier bumps as each omni-wave chain session (S01–S04) lands its
 // ID block: 42 → 47 → 52 → 57. Synthetic test types stay at IDs ≥ 900.
+// The filter is set at each chain session's ceiling: S02 → 47, so 46–47
+// slots stay latent until S03/S04 register them; nothing breaks because
+// list() only returns what has been registered.
 // ---------------------------------------------------------------------------
 
 /** The real catalog, without any suite's synthetic types. */
 function catalog() {
-  return list().filter((m) => m.meta.id <= 42)
+  return list().filter((m) => m.meta.id <= 47)
 }
 
-suite('registry — the 42-type catalog pin (architecture §8.2, FR-6)', () => {
-  test('exactly types 1–42, in ID order, names pinned', () => {
+suite('registry — the 45-type catalog pin (architecture §8.2, FR-6)', () => {
+  test('exactly types 1–45, in ID order, names pinned', () => {
     // Changing a line here silently orphans every seed that stores the ID.
     const NAMES = [
       'Ray Rings', 'Nth Rings', 'Layered Poly', 'Encircled Spiral',
@@ -236,10 +242,11 @@ suite('registry — the 42-type catalog pin (architecture §8.2, FR-6)', () => {
       'Slice Shift', 'RGB Split', 'Block Static', 'Sync Roll',
       'Mirror Fold', 'Interlace Comb', 'Zoom Echo',
       'Smear Streak', 'Ghost Double', 'Contrast Crush',
+      'Lissajous Weave', 'Rose Curve', 'Epicycle Chain',
     ]
     const cat = catalog()
-    assertEq(cat.length, 42, 'the catalog holds exactly 42 types')
-    for (let i = 0; i < 42; i++) {
+    assertEq(cat.length, 45, 'the catalog holds exactly 45 types')
+    for (let i = 0; i < 45; i++) {
       assertEq(cat[i].meta.id, i + 1, `position ${i} carries ID ${i + 1}`)
       assertEq(cat[i].meta.name, NAMES[i], `ID ${i + 1} name`)
     }
@@ -250,7 +257,8 @@ suite('registry — the 42-type catalog pin (architecture §8.2, FR-6)', () => {
       const want =
         m.meta.id <= 7 ? 'primary' : m.meta.id <= 12 ? 'secondary' : m.meta.id <= 16 ? 'overlay'
         : m.meta.id <= 23 ? 'primary' : m.meta.id <= 28 ? 'secondary' : m.meta.id <= 32 ? 'overlay'
-        : 'glitch'
+        : m.meta.id <= 42 ? 'glitch'
+        : 'primary'  // 43–45: omni-wave primary W3
       assertEq(m.meta.role, want, `type ${m.meta.id} role`)
     }
   })
@@ -278,6 +286,9 @@ suite('registry — the 42-type catalog pin (architecture §8.2, FR-6)', () => {
       40: [0, 24],
       41: [0, 1],
       42: [0, 2],
+      43: [1450, 2],
+      44: [1450, 2],
+      45: [740, 3],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -303,7 +314,7 @@ suite('registry — the 42-type catalog pin (architecture §8.2, FR-6)', () => {
     // which is exactly why B1 deferred this test until the catalog existed.
     assertThrows(() => register(one), 'duplicate ID must be rejected')
     assertEq(get(1), one, 'the original module is still registered')
-    assertEq(catalog().length, 42, 'catalog unchanged')
+    assertEq(catalog().length, 45, 'catalog unchanged')
   })
 
   test('the reserved statics keys are rejected as param names (D4 scratch injection)', () => {
@@ -349,6 +360,35 @@ suite('registry — omni-wave pin (IDs 37–42)', () => {
       assertEq(mod.meta.worstCase.pathOps, row.pathOps, 'pathOps')
       assertEq(mod.meta.worstCase.drawCalls, row.drawCalls, 'drawCalls')
       assertEq(mod.meta.fullCanvasOpaque, false, 'glitch layers never claim full-canvas opacity')
+    })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// omni-wave primary W3 — literal per-type pins for IDs 43–45.
+// Same pinning shape as the glitch W2 suite above (id, name, role, worstCase
+// as separate row assertions) so a regression names the offending row rather
+// than the shared table. All are role: 'primary' — closed-curve centerpieces
+// with integer-harmonic loop closure.
+// ---------------------------------------------------------------------------
+
+suite('registry — omni-wave primary W3 pin (IDs 43–45)', () => {
+  /** @type {Array<{id: number, name: string, role: string, pathOps: number, drawCalls: number}>} */
+  const ROWS = [
+    { id: 43, name: 'Lissajous Weave', role: 'primary', pathOps: 1450, drawCalls: 2 },
+    { id: 44, name: 'Rose Curve',      role: 'primary', pathOps: 1450, drawCalls: 2 },
+    { id: 45, name: 'Epicycle Chain',  role: 'primary', pathOps: 740,  drawCalls: 3 },
+  ]
+  for (const row of ROWS) {
+    test(`type ${row.id} ${row.name} — id, name, role, worstCase`, () => {
+      const mod = get(row.id)
+      assert(mod !== null, `type ${row.id} must be registered`)
+      assertEq(mod.meta.id, row.id, 'id')
+      assertEq(mod.meta.name, row.name, 'name')
+      assertEq(mod.meta.role, row.role, 'role')
+      assertEq(mod.meta.worstCase.pathOps, row.pathOps, 'pathOps')
+      assertEq(mod.meta.worstCase.drawCalls, row.drawCalls, 'drawCalls')
+      assertEq(mod.meta.fullCanvasOpaque, false, 'closed-curve primaries never claim full-canvas opacity')
     })
   }
 })

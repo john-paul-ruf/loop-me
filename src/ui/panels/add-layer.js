@@ -78,6 +78,9 @@ const VIZ_CLASS = {
   40: 'v-smear',
   41: 'v-ghost',
   42: 'v-crush',
+  43: 'v-liss',
+  44: 'v-rose',
+  45: 'v-epi',
 }
 
 /** Role dot class per role name. */

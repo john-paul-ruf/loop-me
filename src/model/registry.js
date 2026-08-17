@@ -7,14 +7,15 @@
  * (architecture §4 rule 3) — that restriction is what keeps every other
  * subsystem walking the declaration rather than the catalog.
  *
- * Layer type IDs 1–42 are append-only forever, same rule as algorithm and
+ * Layer type IDs 1–45 are append-only forever, same rule as algorithm and
  * blend IDs. `tests/registry.test.js` pins the exact ordering. Waves so
  * far: D1 (1), D2 (2–7), D3 (8–12), D4 (13–16), the double-catalog wave
  * (17–32), the glitch-effects wave (33–36 — role `glitch`, layers that
  * corrupt the composited frame below rather than draw imagery of their
  * own; see the layer files for the self-sampling contract), the omni-wave
  * glitch W2 (37–42 — six more self-sampling glitch types on the same
- * contract).
+ * contract), the omni-wave primary W3 (43–45 — three closed-curve
+ * centerpieces with integer-harmonic loop closure; more to come at 46–47).
  */
 
 import { PARAM_KINDS } from './params.js'
@@ -60,6 +61,9 @@ import * as zoomEcho from '../layers/zoom-echo.js'
 import * as smearStreak from '../layers/smear-streak.js'
 import * as ghostDouble from '../layers/ghost-double.js'
 import * as contrastCrush from '../layers/contrast-crush.js'
+import * as lissajousWeave from '../layers/lissajous-weave.js'
+import * as roseCurve from '../layers/rose-curve.js'
+import * as epicycleChain from '../layers/epicycle-chain.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -298,3 +302,6 @@ register(zoomEcho)
 register(smearStreak)
 register(ghostDouble)
 register(contrastCrush)
+register(lissajousWeave)
+register(roseCurve)
+register(epicycleChain)
