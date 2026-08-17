@@ -252,6 +252,7 @@ export const ADD_LAYER = {
     primary: 'Primary',
     secondary: 'Secondary',
     overlay: 'Overlay',
+    glitch: 'Glitch',
   },
 }
 

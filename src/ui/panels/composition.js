@@ -83,6 +83,7 @@ const ROLE_DOT_CLASS = {
   primary: 'role-dot--primary',
   secondary: 'role-dot--secondary',
   overlay: 'role-dot--overlay',
+  glitch: 'role-dot--glitch',
 }
 
 // ---------------------------------------------------------------------------

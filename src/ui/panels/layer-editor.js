@@ -97,6 +97,7 @@ const ROLE_LABELS = {
   primary: 'Primary \u2014 centre-anchored structure',
   secondary: 'Secondary \u2014 full-frame texture',
   overlay: 'Overlay \u2014 final-pass mood',
+  glitch: 'Glitch \u2014 frame-corrupting chaos',
 }
 
 // ---------------------------------------------------------------------------
