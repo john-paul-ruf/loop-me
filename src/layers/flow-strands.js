@@ -32,6 +32,19 @@
  * detectability floor at the min bound.
  *
  * Imports `model/params.js` only (§4 rule 2).
+ *
+ * **per-effect-glow (feature) — widened additive re-stroke per bucket.**
+ * When `glowStrength > 0`, `draw` re-issues each bucket's strand path once
+ * more at `lineWidth × K_GLOW` under `globalCompositeOperation = 'lighter'`
+ * BEFORE the crisp bucket pass — a soft halo along every streamline, per
+ * bucket, so the brightness ordering that shimmer establishes carries into
+ * the halo layer (`envelope × shimmer × ((b + 0.5) / NB) × gs`). Crisp
+ * strokes drawn on top (halo under mark). Dash pattern and offset are
+ * shared between halo and crisp so the halo tracks each dash. FR-6: NO
+ * `shadowBlur`; §6.5: zero per-frame allocation (halo uses the same cached
+ * `lineX/lineY/bucket` and the same preallocated `dash` array). `gs === 0`
+ * is a hard no-op → byte-identical to pre-glow. See `src/util/glow.js`
+ * for the canonical draw-time idiom.
  */
 
 import { A, S } from '../model/params.js'
@@ -42,7 +55,9 @@ export const meta = {
   name: 'Flow Strands',
   role: 'secondary',
   blurb: 'Streamlines threading a static synthetic flow field.',
-  worstCase: { pathOps: 2280, drawCalls: 8 },
+  // Worst case doubles under the glow pass: another NB=8 accumulated bucket
+  // strokes at K_GLOW × lineWidth before the crisp bucket passes.
+  worstCase: { pathOps: 4560, drawCalls: 16 },
   fullCanvasOpaque: false,
 }
 
@@ -52,11 +67,24 @@ export const params = [
   A('flow', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
   // shimmer.min > 0 (0.15): a zero alpha collapses every bucket to void.
   A('shimmer', 0.15, 1, { default: { min: 0.35, max: 0.85 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
 const H = 1920
 const TWO_PI = Math.PI * 2
+/**
+ * Halo width multiplier for the glow re-stroke. Matches the S02 stroke-batch
+ * tuning: below 2 the halo hides inside the 1.5 px crisp stroke, above 3
+ * halos of adjacent strands merge into a wash on the densest `strands = 60`
+ * bound. 2.5 keeps the halo (3.75 px) clearly wider than the crisp line and
+ * still well under the dash period (`DASH_P / 2 = 13`) so dashes stay
+ * distinct in the halo layer too.
+ */
+const K_GLOW = 2.5
 /** Fixed count of vector-field terms — matches the prepared draw budget. */
 const FIELD_TERMS = 3
 /** rng values per term: fx, fy, phase. */
@@ -183,14 +211,42 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const flowDeg = /** @type {number} */ (resolved.flow)
   const shimmer = /** @type {number} */ (resolved.shimmer)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { strands, lineX, lineY, bucket, dash } = prepared
 
   const envelope = ctx.globalAlpha
   ctx.strokeStyle = prepared.color
-  ctx.lineWidth = 1.5
   ctx.lineCap = 'butt'
   ctx.setLineDash(dash)
   ctx.lineDashOffset = -(flowDeg / 360) * DASH_P * DASH_CYCLES
+
+  // Glow pass — drawn FIRST so the crisp strands sit on top (halo under
+  // mark). Per-bucket accumulation matches the crisp shape so shimmer's
+  // brightness ordering carries into the halo. `gs === 0` is a hard no-op
+  // → byte-identical to pre-glow. See `src/util/glow.js`.
+  if (gs > 0) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.lineWidth = 1.5 * K_GLOW
+    for (let b = 0; b < NB; b++) {
+      ctx.beginPath()
+      for (let s = 0; s < strands; s++) {
+        if (bucket[s] !== b) continue
+        const base = s * STEPS
+        ctx.moveTo(lineX[base], lineY[base])
+        for (let step = 1; step < STEPS; step++) {
+          ctx.lineTo(lineX[base + step], lineY[base + step])
+        }
+      }
+      ctx.globalAlpha = envelope * shimmer * ((b + 0.5) / NB) * gs
+      ctx.stroke()
+    }
+    ctx.restore()
+    // `strokeStyle`/`lineCap`/dash state survive `restore()` since they were
+    // set before `save()`.
+  }
+
+  ctx.lineWidth = 1.5
 
   // One pass per alpha bucket — each bucket's strands accumulate on the
   // ctx's own path (no per-bucket Path2D allocation, §6.5).

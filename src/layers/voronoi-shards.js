@@ -32,6 +32,18 @@
  * even at `sites.min = 12` there are ~30 edges revealed.
  *
  * Imports `model/params.js` only (§4 rule 2).
+ *
+ * **per-effect-glow (feature) — mixed technique: wide additive re-stroke
+ * of the revealed edges (K_GLOW_STROKE), widened additive re-fill of the
+ * site dots (K_GLOW_DOT).** When `glowStrength > 0`, `draw` re-issues both
+ * primitives under `globalCompositeOperation = 'lighter'` BEFORE their
+ * crisp counterparts — a soft halo along every visible edge and around
+ * every site dot, crisp lines/dots drawn on top (halo under mark). The
+ * two K_GLOW constants match the S01/S02 archetype tuning: 2.5 for stroked
+ * edges (pulse-rings), 1.8 for dot fills (orbit-dots). FR-6: NO
+ * `shadowBlur`; §6.5: zero per-frame allocation (halo re-uses the same
+ * cached edge/site tables). `gs === 0` is a hard no-op → byte-identical to
+ * pre-glow. See `src/util/glow.js` for the canonical draw-time idiom.
  */
 
 import { A, S } from '../model/params.js'
@@ -42,7 +54,10 @@ export const meta = {
   name: 'Voronoi Shards',
   role: 'secondary',
   blurb: 'A Voronoi wireframe revealing itself edge by edge.',
-  worstCase: { pathOps: 260, drawCalls: 3 },
+  // Worst case doubles under the glow pass: one extra edge re-stroke +
+  // one extra dot re-fill (3 → 5 drawCalls; ~260 → 520 path ops covering
+  // the halo edges and dots alongside the crisp).
+  worstCase: { pathOps: 520, drawCalls: 5 },
   fullCanvasOpaque: false,
 }
 
@@ -51,6 +66,10 @@ export const params = [
   S.int('sites', 12, 40, { default: 22 }),
   // reveal.min > 0 (0.2): a zero prefix hides every edge — null figure.
   A('reveal', 0.2, 1, { default: { min: 0.35, max: 1 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -70,6 +89,20 @@ const DOT_R = 5
  * any perceptible visual difference and coarser than any float drift the
  * clipping can produce on a 1080×1920 canvas. */
 const EDGE_QUANT = 1
+/**
+ * Edge-halo width multiplier — matches the S02 stroke-batch tuning. Crisp
+ * `lineWidth = 2`, halo `lineWidth = 5`: below 2× hides the halo inside
+ * the crisp line; above 3× halos of adjacent shared edges merge into a
+ * cell wash on dense (`sites = 40`) diagrams.
+ */
+const K_GLOW_STROKE = 2.5
+/**
+ * Site-dot halo multiplier — matches orbit-dots (the dot archetype). Crisp
+ * `DOT_R = 5`, halo `r = 9`: below 1.4× hides the halo inside the crisp
+ * dot; above 2.5× halos of adjacent sites (min separation ~2 × INSET)
+ * begin to merge on the tightest `sites = 40`.
+ */
+const K_GLOW_DOT = 1.8
 
 /**
  * @typedef {object} VoronoiShardsPrepared
@@ -220,14 +253,51 @@ export function prepare(statics, palette, rng) {
 export function draw(ctx, resolved, prepared, palette) {
   void palette
   const reveal = /** @type {number} */ (resolved.reveal)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { sites, siteX, siteY, edgeCount, edgeAX, edgeAY, edgeBX, edgeBY } = prepared
   // Round-and-clamp so reveal ∈ [0.2, 1] always emits at least a few edges
   // at the low end and every edge at the top.
   const showN = Math.min(edgeCount, Math.max(1, Math.round(reveal * edgeCount)))
 
   ctx.strokeStyle = prepared.color
-  ctx.lineWidth = 2
   ctx.lineCap = 'round'
+  ctx.fillStyle = prepared.color
+
+  // Glow pass — drawn FIRST so the crisp wireframe and dots sit on top
+  // (halo under mark). Two halo primitives: wide re-stroke of the revealed
+  // edges, then widened re-fill of the site dots — both under 'lighter'.
+  // `gs === 0` is a hard no-op → byte-identical to pre-glow. See
+  // `src/util/glow.js`.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+
+    // Halo 1 — widened edge re-stroke.
+    ctx.lineWidth = 2 * K_GLOW_STROKE
+    ctx.beginPath()
+    for (let i = 0; i < showN; i++) {
+      ctx.moveTo(edgeAX[i], edgeAY[i])
+      ctx.lineTo(edgeBX[i], edgeBY[i])
+    }
+    ctx.stroke()
+
+    // Halo 2 — widened site-dot re-fill.
+    const glowR = DOT_R * K_GLOW_DOT
+    ctx.beginPath()
+    for (let i = 0; i < sites; i++) {
+      ctx.moveTo(siteX[i] + glowR, siteY[i])
+      ctx.arc(siteX[i], siteY[i], glowR, 0, TWO_PI)
+    }
+    ctx.fill()
+
+    ctx.restore()
+    // `strokeStyle`/`fillStyle`/`lineCap` survive `restore()` since they
+    // were set before `save()`.
+  }
+
+  ctx.lineWidth = 2
 
   // Draw 1 — the revealed edges (moveTo + lineTo per edge).
   ctx.beginPath()
@@ -238,7 +308,6 @@ export function draw(ctx, resolved, prepared, palette) {
   ctx.stroke()
 
   // Draw 2 — always-visible site dots (fill).
-  ctx.fillStyle = prepared.color
   ctx.beginPath()
   for (let i = 0; i < sites; i++) {
     ctx.moveTo(siteX[i] + DOT_R, siteY[i])
