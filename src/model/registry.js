@@ -7,7 +7,7 @@
  * (architecture §4 rule 3) — that restriction is what keeps every other
  * subsystem walking the declaration rather than the catalog.
  *
- * Layer type IDs 1–52 are append-only forever, same rule as algorithm and
+ * Layer type IDs 1–57 are append-only forever, same rule as algorithm and
  * blend IDs. `tests/registry.test.js` pins the exact ordering. Waves so
  * far: D1 (1), D2 (2–7), D3 (8–12), D4 (13–16), the double-catalog wave
  * (17–32), the glitch-effects wave (33–36 — role `glitch`, layers that
@@ -18,7 +18,10 @@
  * centerpieces with integer-harmonic loop closure), the omni-wave
  * secondary W3 (48–52 — five full-frame field textures closing loops via
  * radial-wave phase wrap, dash-phase advance, ring-advance families, and
- * cached-streamline replay).
+ * cached-streamline replay), and the omni-wave overlay W3 (53–57 — five
+ * atmosphere overlays: halftone dot-grid sweep, elliptical-orbit bokeh,
+ * baked-sprite aurora, journey-pulse star field, anamorphic streak flare).
+ * The catalog is complete at 57 as of this wave.
  */
 
 import { PARAM_KINDS } from './params.js'
@@ -74,6 +77,8 @@ import * as truchetTiles from '../layers/truchet-tiles.js'
 import * as voronoiShards from '../layers/voronoi-shards.js'
 import * as interferenceRipple from '../layers/interference-ripple.js'
 import * as flowStrands from '../layers/flow-strands.js'
+import * as halftoneSweep from '../layers/halftone-sweep.js'
+import * as bokehDrift from '../layers/bokeh-drift.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -322,3 +327,5 @@ register(truchetTiles)
 register(voronoiShards)
 register(interferenceRipple)
 register(flowStrands)
+register(halftoneSweep)
+register(bokehDrift)

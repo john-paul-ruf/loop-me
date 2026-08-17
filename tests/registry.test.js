@@ -9,8 +9,8 @@
  * every point of the build; the wave suites append literal pins: exact IDs,
  * names, roles, and the §10.2 worstCase table row by row. Test suites also
  * register synthetic types (IDs ≥ 900 by convention), so the catalog pins
- * filter to id ≤ 52 — the omni-wave secondary W3 frontier; the S04 chain
- * session pushes it out to 57 with the overlay wave.
+ * filter to id ≤ 57 — the omni-wave overlay W3 frontier, the closing wave
+ * of the append-only catalog expansion.
  */
 
 import { suite, test, assert, assertEq, assertThrows } from './harness.js'
@@ -214,12 +214,12 @@ suite('registry — layer type catalog (architecture §5.3, §8.2)', () => {
 // D4 — the catalog frontier. Literal pins from here down.
 // The frontier bumps as each omni-wave chain session (S01–S04) lands its
 // ID block: 42 → 47 → 52 → 57. Synthetic test types stay at IDs ≥ 900.
-// The filter is set at each chain session's ceiling: S03 → 52.
+// The filter is set at each chain session's ceiling: S04 → 57 (final).
 // ---------------------------------------------------------------------------
 
 /** The real catalog, without any suite's synthetic types. */
 function catalog() {
-  return list().filter((m) => m.meta.id <= 52)
+  return list().filter((m) => m.meta.id <= 57)
 }
 
 /**
@@ -246,6 +246,7 @@ const NAMES = [
   'Star Polygon', 'Superellipse Stack',
   'Hex Lattice', 'Truchet Tiles', 'Voronoi Shards',
   'Interference Ripple', 'Flow Strands',
+  'Halftone Sweep', 'Bokeh Drift',
 ]
 
 suite(`registry — the ${NAMES.length}-type catalog pin (architecture §8.2, FR-6)`, () => {
@@ -265,8 +266,9 @@ suite(`registry — the ${NAMES.length}-type catalog pin (architecture §8.2, FR
         m.meta.id <= 7 ? 'primary' : m.meta.id <= 12 ? 'secondary' : m.meta.id <= 16 ? 'overlay'
         : m.meta.id <= 23 ? 'primary' : m.meta.id <= 28 ? 'secondary' : m.meta.id <= 32 ? 'overlay'
         : m.meta.id <= 42 ? 'glitch'
-        : m.meta.id <= 47 ? 'primary'   // 43–47: omni-wave primary W3
-        : 'secondary'                    // 48–52: omni-wave secondary W3
+        : m.meta.id <= 47 ? 'primary'    // 43–47: omni-wave primary W3
+        : m.meta.id <= 52 ? 'secondary'  // 48–52: omni-wave secondary W3
+        : 'overlay'                       // 53–57: omni-wave overlay W3
       assertEq(m.meta.role, want, `type ${m.meta.id} role`)
     }
   })
@@ -304,6 +306,8 @@ suite(`registry — the ${NAMES.length}-type catalog pin (architecture §8.2, FR
       50: [260, 3],
       51: [50, 3],
       52: [2280, 8],
+      53: [1100, 6],
+      54: [0, 16],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -437,6 +441,36 @@ suite('registry — omni-wave secondary W3 pin (IDs 48–52)', () => {
       assertEq(mod.meta.worstCase.pathOps, row.pathOps, 'pathOps')
       assertEq(mod.meta.worstCase.drawCalls, row.drawCalls, 'drawCalls')
       assertEq(mod.meta.fullCanvasOpaque, false, 'secondary field textures never claim full-canvas opacity')
+    })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// omni-wave overlay W3 — literal per-type pins for IDs 53–57.
+// Same pinning shape as the secondary W3 suite above (id, name, role,
+// worstCase as separate row assertions). All are role: 'overlay' — five
+// atmosphere overlays sitting above the primary/secondary stack at modest
+// alpha. Two techniques share the wave: sprite pre-baking for radial and
+// linear gradients (§6.5 allocation-free draw) and band-exit wrap for
+// swept traversals (Stripe Sweep precedent).
+// ---------------------------------------------------------------------------
+
+suite('registry — omni-wave overlay W3 pin (IDs 53–57)', () => {
+  /** @type {Array<{id: number, name: string, role: string, pathOps: number, drawCalls: number}>} */
+  const ROWS = [
+    { id: 53, name: 'Halftone Sweep',    role: 'overlay', pathOps: 1100, drawCalls: 6 },
+    { id: 54, name: 'Bokeh Drift',       role: 'overlay', pathOps: 0,    drawCalls: 16 },
+  ]
+  for (const row of ROWS) {
+    test(`type ${row.id} ${row.name} — id, name, role, worstCase`, () => {
+      const mod = get(row.id)
+      assert(mod !== null, `type ${row.id} must be registered`)
+      assertEq(mod.meta.id, row.id, 'id')
+      assertEq(mod.meta.name, row.name, 'name')
+      assertEq(mod.meta.role, row.role, 'role')
+      assertEq(mod.meta.worstCase.pathOps, row.pathOps, 'pathOps')
+      assertEq(mod.meta.worstCase.drawCalls, row.drawCalls, 'drawCalls')
+      assertEq(mod.meta.fullCanvasOpaque, false, 'overlay atmospheres never claim full-canvas opacity')
     })
   }
 })

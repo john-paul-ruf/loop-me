@@ -183,6 +183,11 @@
 .v-voronoi  { background: linear-gradient(72deg, transparent 0 22%, #B0B6C0 22% 24%, transparent 24% 55%, #B0B6C0 55% 57%, transparent 57% 100%), linear-gradient(-30deg, transparent 0 35%, #B0B6C0 35% 37%, transparent 37% 70%, #B0B6C0 70% 72%, transparent 72% 100%); }
 .v-interf   { background: repeating-radial-gradient(circle at 30% 45%, transparent 0 3px, #FF2E88 3px 4px, transparent 4px 10px), repeating-radial-gradient(circle at 70% 55%, transparent 0 3px, #00E5FF 3px 4px, transparent 4px 10px); }
 .v-flow     { background: repeating-linear-gradient(78deg, #00FFA3 0 1px, transparent 1px 6px); mask-image: repeating-linear-gradient(78deg, #000 0 8px, transparent 8px 12px); }
+/* SESSION: omni-wave — IDs 53–57, overlay W3 atmosphere impressions,
+   appended in registry order. This block closes the omni-wave catalog
+   at 57 (19 primary / 15 secondary / 13 overlay / 10 glitch). */
+.v-halftone { background: radial-gradient(circle at 50% 15%, #FFD400 0 2px, transparent 3px), radial-gradient(circle at 25% 40%, #FFD400 0 3px, transparent 4px), radial-gradient(circle at 50% 50%, #FFD400 0 5px, transparent 6px), radial-gradient(circle at 75% 40%, #FFD400 0 3px, transparent 4px), radial-gradient(circle at 25% 65%, #FFD400 0 2px, transparent 3px), radial-gradient(circle at 75% 65%, #FFD400 0 2px, transparent 3px), radial-gradient(circle at 50% 85%, #FFD400 0 1px, transparent 2px); }
+.v-bokeh    { background: radial-gradient(circle at 25% 30%, rgba(255,46,136,.75) 0 8px, transparent 14px), radial-gradient(circle at 68% 40%, rgba(0,229,255,.7) 0 12px, transparent 20px), radial-gradient(circle at 45% 72%, rgba(124,77,255,.75) 0 9px, transparent 16px), radial-gradient(circle at 82% 78%, rgba(0,255,163,.6) 0 6px, transparent 11px); }
 
 /* ------------------------------------------------------------
    5. SCHEMES (mocks/schemes.html)

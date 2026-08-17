@@ -150,11 +150,12 @@ function anyPixelOff(img, rgb, tol) {
 /**
  * The append-only catalog frontier — bumps as each omni-wave chain session
  * (S01–S04) lands its ID block: 42 → 47 → 52 → 57. Synthetic test types
- * stay at IDs ≥ 900 and are filtered out. S03 raises to 52 up front:
- * unregistered IDs (50–52 until CKPT2 lands them) simply don't appear in
- * `list()`, so the sweep is a no-op for them until they exist.
+ * stay at IDs ≥ 900 and are filtered out. S04 raises to 57 up front:
+ * unregistered IDs (55–57 until CKPT2 lands them) simply don't appear in
+ * `list()`, so the sweep is a no-op for them until they exist. This is
+ * the final frontier — the append-only catalog closes at 57.
  */
-const CATALOG_FRONTIER = 52
+const CATALOG_FRONTIER = 57
 
 /**
  * Legacy IDs (< 33) waived from the solo sweep at S01 modernization time.
