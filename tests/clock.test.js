@@ -32,7 +32,7 @@
 import { suite, test, assert, assertEq, assertClose } from './harness.js'
 import { state, subscribe, publish, TOPICS } from '../src/core/state.js'
 import { configure as configureActions, undo, loadComposition, addLayer, deleteLayer, setBlend, setScheme, setDuration, setParamRange, setParamTimes, setParamAlgorithm, setParamStatic } from '../src/core/actions.js'
-import { configure as configureClock, start, pause, resume, resetEpoch, onFrame, currentFrame, paintOne } from '../src/core/clock.js'
+import { configure as configureClock, start, pause, resume, resetEpoch, onFrame, currentFrame, paintOne, repaintIfPaused } from '../src/core/clock.js'
 import { totalFrames, create, createLayer, clone } from '../src/model/composition.js'
 import { register } from '../src/model/registry.js'
 import { A, S } from '../src/model/params.js'
@@ -287,6 +287,56 @@ suite('clock — pause and resume (FR-17)', () => {
     assertEq(lastPaintedFrame, 42, 'paintOne painted frame 42')
     assert(flushCalled, 'paintOne flushed dirty caches')
     assertEq(state.playing, false, 'paintOne does not start the loop')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Clock — repaintIfPaused (paused-edit repaint)
+// ---------------------------------------------------------------------------
+
+suite('clock — repaintIfPaused (paused-edit repaint)', () => {
+  test('does NOT paint while playing (rAF loop already paints every frame)', () => {
+    const c = create(901)
+    loadComposition(c)
+    resetEpoch()
+    start()
+    assertEq(state.playing, true, 'clock is playing')
+    lastPaintedFrame = -1
+    flushCalled = false
+    repaintIfPaused()
+    assertEq(lastPaintedFrame, -1, 'no paint occurred while playing')
+    assert(!flushCalled, 'no flushDirty while playing')
+    pause() // clean up
+  })
+
+  test('paints the current frame while paused (fresh state — playing=false)', () => {
+    const c = create(901)
+    loadComposition(c)
+    resetEpoch()
+    assertEq(state.playing, false, 'starts paused (no start() called)')
+    lastPaintedFrame = -1
+    lastTotalFrames = -1
+    flushCalled = false
+    repaintIfPaused()
+    // currentFrame() near 0 at epoch start; totalFrames from state.composition
+    assert(lastPaintedFrame >= 0, `spy fired with a frame ≥ 0, got ${lastPaintedFrame}`)
+    assert(lastPaintedFrame < totalFrames(c.durationId), `frame within [0, totalFrames), got ${lastPaintedFrame}`)
+    assertEq(lastTotalFrames, totalFrames(c.durationId), 'totalFrames passed to paint')
+    assert(flushCalled, 'flushDirty called before paint')
+  })
+
+  test('paints the current frame after explicit pause()', () => {
+    const c = create(901)
+    loadComposition(c)
+    resetEpoch()
+    start()
+    pause()
+    assertEq(state.playing, false, 'paused after pause()')
+    lastPaintedFrame = -1
+    flushCalled = false
+    repaintIfPaused()
+    assert(lastPaintedFrame >= 0, `paint fired after pause(), got frame ${lastPaintedFrame}`)
+    assert(flushCalled, 'flushDirty called after pause()')
   })
 })
 

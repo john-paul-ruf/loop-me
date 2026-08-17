@@ -247,6 +247,25 @@ export function isPlaying() {
 }
 
 /**
+ * Repaint the frozen canvas from a paused-mode edit.
+ *
+ * While playing, this is a no-op: the rAF loop (`tick`) already paints every
+ * frame, so an on-edit paint would be redundant work on the hot path. While
+ * paused, the rAF handle is cancelled (`pause()` — FR-17), so an edit that
+ * mutates `state.composition` never reaches pixels until something calls the
+ * painter — this function is that call.
+ *
+ * Delegates to `paintOne(currentFrame())`: the same one-shot path the boot
+ * sequence uses (architecture §7 step 8), inheriting its "view-only paused
+ * mode" documentation. The paused frame is the last-derived fractional frame,
+ * so live edits refresh in place without shifting playback position (FR-10).
+ */
+export function repaintIfPaused() {
+  if (state.playing) return
+  paintOne(currentFrame())
+}
+
+/**
  * Compute the current fractional frame from wall-clock time without painting.
  * Useful for tests and for the tick control's position indicator.
  *
