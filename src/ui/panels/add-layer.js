@@ -2,7 +2,7 @@
 /**
  * Add-layer modal (mocks/add-layer.html, FR-5, FR-6, FR-9).
  *
- * Shows all 32 types grouped by role with their CSS impression previews.
+ * Shows all 36 types grouped by role with their CSS impression previews.
  * Picking a type adds it **on top** with randomized in-bounds parameters —
  * never a blank default that renders nothing. Unreachable while the governor
  * warns (the Add layer button in the composition panel is disabled with
@@ -68,6 +68,10 @@ const VIZ_CLASS = {
   30: 'v-tint',
   31: 'v-haze',
   32: 'v-sweep',
+  33: 'v-slice',
+  34: 'v-rgb',
+  35: 'v-blocks',
+  36: 'v-roll',
 }
 
 /** Role dot class per role name. */
@@ -75,6 +79,7 @@ const ROLE_DOT = {
   primary: 'role-dot--primary',
   secondary: 'role-dot--secondary',
   overlay: 'role-dot--overlay',
+  glitch: 'role-dot--glitch',
 }
 
 /** Role sub-headings per the mock. */
@@ -82,6 +87,7 @@ const ROLE_HEADINGS = [
   { role: 'primary', label: 'Primary', desc: 'centre-anchored structure' },
   { role: 'secondary', label: 'Secondary', desc: 'full-frame texture' },
   { role: 'overlay', label: 'Overlay', desc: 'final-pass mood' },
+  { role: 'glitch', label: 'Glitch', desc: 'frame-corrupting chaos' },
 ]
 
 // ---------------------------------------------------------------------------
