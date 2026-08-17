@@ -257,6 +257,15 @@ function onEnter() {
   // Paint frame 0 — the FIRST pixel ever drawn (architecture §7 step 8).
   clock.paintOne(0)
 
+  // Paused-edit repaint (FR-10 gap fix): while playing, the rAF loop repaints
+  // every frame; while paused it is cancelled (FR-17), so a live edit never
+  // reaches pixels. Wired here — inside onEnter, after `painter.setTarget` and
+  // after the first paint — so boot-time COMPOSITION/LAYER publishes (step 4's
+  // `loadComposition`) don't trigger a phantom pre-target repaint. The helper's
+  // own `state.playing` guard keeps the playing path untouched.
+  state.subscribe(state.TOPICS.LAYER, () => { clock.repaintIfPaused() })
+  state.subscribe(state.TOPICS.COMPOSITION, () => { clock.repaintIfPaused() })
+
   // Start the clock unless reduced-motion or paused.
   if (splash.isReducedMotion()) {
     // Stay paused — show Play (FR-17). The play/pause button already
