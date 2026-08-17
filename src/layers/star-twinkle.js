@@ -37,11 +37,24 @@
  * star occupies at most a 4-px disc so `fullCanvasOpaque: false` holds
  * trivially — most of the frame remains background.
  *
- * Imports `model/params.js` and `core/rng.js` (§4 rule 2).
+ * **per-effect-glow — the showcase sprite layer.** When `glowStrength > 0`,
+ * `draw` blits one `glowSprite` per star BEFORE the crisp bucket loop, sized
+ * to `size[i] × K_HALO` at the star's centre under `globalCompositeOperation
+ * = 'lighter'`. Each halo's alpha inherits the star's bucket-midpoint pulse
+ * (same modulation as the crisp pass) times `gs`, so haloes twinkle in sync
+ * with their stars rather than glowing uniformly. Bucket-0 stars are skipped
+ * — no halo where the twinkle troughs. Gradient minted once in `prepare` from
+ * `statics.scratch` + `statics.color` (§6.5: zero per-frame allocation).
+ * FR-6 AC: NO `shadowBlur`. `gs === 0` is a hard no-op ⇒ byte-identical
+ * pre-glow output (architecture §9.5). See `src/util/glow.js` for the
+ * canonical draw-time idiom and the `glowStrength` param convention.
+ *
+ * Imports `model/params.js`, `core/rng.js`, `util/glow.js` (§4 rule 2).
  */
 
 import { A, S } from '../model/params.js'
 import { range, intRange } from '../core/rng.js'
+import { glowGradient, glowSprite } from '../util/glow.js'
 
 /** @type {import('../model/params.js').LayerMeta} */
 export const meta = {
@@ -49,7 +62,12 @@ export const meta = {
   name: 'Star Twinkle',
   role: 'overlay',
   blurb: 'A quiet field of stars twinkling on their own phases.',
-  worstCase: { pathOps: 150, drawCalls: 8 },
+  // Worst case grows under the glow pass: crisp is 7 bucket-fills (bucket 0
+  // skipped) accumulating up to 140 arcs total; the halo pass adds up to
+  // MAX_STARS = 140 additive `fillRect` sprite blits (one per star, still
+  // skipping bucket 0). No arc pathOps are added — `fillRect` doesn't build
+  // a path. Both dimensions raised to 150 covers halo + a small buffer.
+  worstCase: { pathOps: 150, drawCalls: 150 },
   fullCanvasOpaque: false,
 }
 
@@ -61,6 +79,11 @@ export const params = [
   A('phase360', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
   // twinkle.min > 0 (0.2) composes with envelope alpha (Flag 4).
   A('twinkle', 0.2, 1, { default: { min: 0.35, max: 0.8 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow
+  // (architecture §9.5).
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -81,6 +104,16 @@ const K_MIN = 1
 const K_MAX = 3
 /** Inset so stars stay wholly inside the canvas. */
 const INSET = 8
+/**
+ * Halo-radius multiplier for the per-star `glowSprite` blit. Stars are 1–4 px
+ * discs, so a raw sprite at `size[i]` is invisible against the crisp mark.
+ * K = 6 lifts the halo out to 6–24 px — a clear aura around each star at the
+ * default fields (`stars ≤ 140`, canvas 1080×1920, ≥ ~7000 px² per star at
+ * mean spacing). Higher (10+) blobs adjacent stars into a wash on the tightest
+ * spacing; lower (≤ 3) reads as a fringe rather than a glow. This is the
+ * showcase layer for per-effect-glow — the widest halo the budget allows.
+ */
+const K_HALO = 6
 
 /**
  * @typedef {object} StarTwinklePrepared
@@ -91,6 +124,8 @@ const INSET = 8
  * @property {Float64Array} phase   Per-star cycle offset in [0, 1).
  * @property {Uint8Array}  k        Per-star integer journey periods per loop.
  * @property {string} color
+ * @property {CanvasGradient} glowGrad  Unit-radius radial gradient in the
+ *   layer's colour, minted once for per-star `glowSprite` blits (§6.5).
  */
 
 /**
@@ -102,6 +137,8 @@ const INSET = 8
 export function prepare(statics, palette, rng) {
   void palette
   const stars = /** @type {number} */ (statics.stars)
+  const scratch = /** @type {import('../model/params.js').ScratchFactory} */ (statics.scratch)
+  const color = /** @type {string} */ (statics.color)
 
   const px = new Float64Array(MAX_STARS)
   const py = new Float64Array(MAX_STARS)
@@ -133,7 +170,10 @@ export function prepare(statics, palette, rng) {
     size,
     phase,
     k,
-    color: /** @type {string} */ (statics.color),
+    color,
+    // Prepare-time gradient mint (§6.5): allocation happens once here, the
+    // frame path only blits via `glowSprite`.
+    glowGrad: glowGradient(scratch, color),
   }
 }
 
@@ -147,11 +187,39 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const phase360 = /** @type {number} */ (resolved.phase360)
   const twinkle = /** @type {number} */ (resolved.twinkle)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { stars, px, py, size, phase, k } = prepared
 
-  ctx.fillStyle = prepared.color
   const envelope = ctx.globalAlpha
   const u = phase360 / 360
+
+  // Glow pass — drawn FIRST so the crisp stars sit on top of their haloes.
+  // `gs === 0` is a hard no-op: skip the pass entirely for byte-identical
+  // pre-glow output. Per-star `glowSprite` blit under 'lighter' with alpha
+  // = envelope × gs × twinkle × bucket-midpoint — halos twinkle in sync with
+  // their stars rather than shining uniformly. Bucket 0 is skipped (matches
+  // the crisp pass: dim-trough stars get no halo either). See
+  // `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.fillStyle = prepared.glowGrad
+    for (let i = 0; i < stars; i++) {
+      let localU = k[i] * u + phase[i]
+      localU = localU - Math.floor(localU)
+      const pulse = (1 - Math.cos(TWO_PI * localU)) / 2
+      const bucket = pulse >= 1 ? NB - 1 : Math.floor(pulse * NB)
+      if (bucket === 0) continue
+      ctx.globalAlpha = envelope * gs * twinkle * ((bucket + 0.5) / NB)
+      const rad = size[i] * K_HALO
+      // Absolute setTransform (see `glowSprite`); save/restore fences it.
+      ctx.setTransform(rad, 0, 0, rad, px[i], py[i])
+      ctx.fillRect(-1, -1, 2, 2)
+    }
+    ctx.restore()
+  }
+
+  ctx.fillStyle = prepared.color
 
   // NB passes over the star table — each pass fills the stars whose
   // quantized pulse value lands in its bucket. Bucket 0 is the dim

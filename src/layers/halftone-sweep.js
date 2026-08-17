@@ -34,6 +34,21 @@
  * between dots (radius peaks at `spacing · 0.4`, so at least 20% of each
  * cell remains uncovered) and the composed alpha caps at `1 · 0.7 = 0.7`.
  *
+ * **per-effect-glow — additive re-fill per bucket (option B, from
+ * `orbit-dots.js`).** When `glowStrength > 0`, `draw` re-runs the bucket loop
+ * ONCE more BEFORE the crisp pass under `globalCompositeOperation = 'lighter'`
+ * at each bucket's dot radius × `K_GLOW` — a widened halo per bucket, crisp
+ * dots on top. Option A (per-dot `glowSprite`) was rejected the same way
+ * `orbit-dots.js` rejected it: up to ~1170 additive blits at worst case
+ * (spacing=44) far exceeds this layer's budget, and a single sprite can't
+ * cover dots distributed across the canvas. The additive re-fill costs one
+ * extra `fill()` per non-trough bucket (+5 drawCalls) and re-issues the same
+ * arc pathOps under the wider radius (path ops double). FR-6 AC: NO
+ * `shadowBlur`; §6.5: no per-frame allocation (no gradient needed — plain
+ * colour re-fill). `gs === 0` is a hard no-op ⇒ byte-identical pre-glow
+ * output (architecture §9.5). See `src/util/glow.js` for the canonical
+ * draw-time idiom and the `glowStrength` param convention.
+ *
  * Imports `model/params.js` only (§4 rule 2).
  */
 
@@ -45,7 +60,10 @@ export const meta = {
   name: 'Halftone Sweep',
   role: 'overlay',
   blurb: 'A halftone dot grid pulsing under a swept band.',
-  worstCase: { pathOps: 1100, drawCalls: 6 },
+  // Worst case doubles under the glow pass: the halo re-runs the same NB-1
+  // bucket loop at widened radius (+5 fills, +up to ~1170 arc pathOps at
+  // spacing=44). Crisp is 5 fills / ~1170 arcs; glow adds another 5 / ~1170.
+  worstCase: { pathOps: 2200, drawCalls: 12 },
   fullCanvasOpaque: false,
 }
 
@@ -61,6 +79,11 @@ export const params = [
   A('band', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
   // opacity.min > 0 (0.15) composes with envelope alpha (Flag 4).
   A('opacity', 0.15, 0.7, { default: { min: 0.2, max: 0.5 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow
+  // (architecture §9.5).
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -77,6 +100,14 @@ const NB = 6
 const TRAVEL = CY - 160
 /** Cell fraction the max dot radius occupies (never touches the neighbour). */
 const RADIUS_FRAC = 0.4
+/**
+ * Halo radius multiplier for the additive re-fill glow pass. Matches
+ * `orbit-dots.js` (the fill/dot budget archetype) at 1.8× the dot radius —
+ * below 1.4× the halo hides inside the crisp dot; above 2.5× adjacent haloes
+ * merge into a wash at the tightest `spacing`. 1.8 widens each bucket's dot
+ * to a clear ring of light without bleeding the grid into a smear.
+ */
+const K_GLOW = 1.8
 
 /**
  * @typedef {object} HalftoneSweepPrepared
@@ -137,6 +168,7 @@ export function draw(ctx, resolved, prepared, palette) {
   const bandDeg = /** @type {number} */ (resolved.band)
   const spread = /** @type {number} */ (resolved.spread)
   const opacity = /** @type {number} */ (resolved.opacity)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { dotCount, dotX, dotY, rmax } = prepared
 
   // Flag 4 posture: composes with the envelope alpha, never replaces it.
@@ -149,6 +181,31 @@ export function draw(ctx, resolved, prepared, palette) {
   // paints visible dots.
   const bandY = CY - TRAVEL * Math.cos(bandDeg * DEG)
   const invSpread = 1 / spread
+
+  // Glow pass — additive re-fill per bucket at K_GLOW × dot radius (option B,
+  // matching `orbit-dots.js`). Drawn FIRST so the crisp dots sit on top of
+  // their haloes. `gs === 0` is a hard no-op ⇒ byte-identical pre-glow
+  // output. See `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const aC = ctx.globalAlpha  // already envelope × opacity
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = aC * gs
+    for (let b = 1; b < NB; b++) {
+      const r = rmax * ((b + 0.5) / NB) * K_GLOW
+      ctx.beginPath()
+      for (let i = 0; i < dotCount; i++) {
+        const d = Math.abs(dotY[i] - bandY) * invSpread
+        const inf = d >= 1 ? 0 : 1 - d
+        const bucket = inf >= 1 ? NB - 1 : Math.floor(inf * NB)
+        if (bucket !== b) continue
+        ctx.moveTo(dotX[i] + r, dotY[i])
+        ctx.arc(dotX[i], dotY[i], r, 0, TWO_PI)
+      }
+      ctx.fill()
+    }
+    ctx.restore()
+  }
 
   // Six passes over the dot table — each pass fills the dots whose
   // quantized influence lands in its bucket. Bucket 0 is the trough (no
