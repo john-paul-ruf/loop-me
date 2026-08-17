@@ -445,6 +445,68 @@ suite('layers — primary W3 min-bound visibility floors are guarded (FR-6 AC re
   }
 })
 
+/**
+ * The omni-wave secondary W3 block — full-field textures (48–52) that
+ * paint their own geometry over a bare background. Determinism check is
+ * a *solo* paint (same as the primary W3 suite above): every W3
+ * secondary consumes a FIXED number of rng draws in prepare (hex-lattice
+ * 0, truchet 299, voronoi 80, interference 6, flow-strands 189) and no
+ * per-frame entropy, so two paints against the same rngSeed and frame
+ * must land the exact same pixels.
+ */
+const SECONDARY_W3_IDS = [48, 49, 50, 51, 52]
+
+suite('layers — secondary W3 determinism (FR-4: same seed, same frame → same pixels)', () => {
+  for (const id of SECONDARY_W3_IDS) {
+    const mod = /** @type {LayerModule} */ (list().find((m) => m.meta.id === id))
+    test(`type ${id} ${mod.meta.name}: solo is bit-for-bit stable across paints`, () => {
+      const params = pinnedParams(mod, 'mid')
+      const a = new Uint8ClampedArray(paintOne(makeLayer(id, params)))
+      const b = new Uint8ClampedArray(paintOne(makeLayer(id, params)))
+      assertEq(a.length, b.length, 'read-back length changed between paints')
+      for (let i = 0; i < a.length; i += 4 * 61) {
+        assertEq(a[i], b[i], `red channel drift at byte ${i}`)
+      }
+    })
+  }
+})
+
+/**
+ * Per-type pin for the W3 secondaries — the row shape mirrors the primary
+ * W3 driver map. Each secondary declares at least one A param whose full
+ * sweep must render a visible field; every A `.min` must be strictly
+ * positive so the FR-6 sweep can't be silently passed by a degenerate
+ * bound. The listed param names track the driving amplitude (alpha or
+ * stroke width) — the one whose zero would produce a null field.
+ * @type {Record<number, string>}
+ */
+const SECONDARY_W3_DRIVER = {
+  48: 'glow',     // top-bucket alpha modulator — 0 blanks every stroked bucket
+  49: 'width',    // stroke width — 0 collapses arcs to nothing
+  50: 'reveal',   // edge-prefix fraction — 0 hides every edge
+  51: 'weight',   // ring line width — 0 collapses each ring to nothing
+  52: 'shimmer',  // bucket alpha modulator — 0 blanks every stroked bucket
+}
+
+suite('layers — secondary W3 min-bound visibility floors are guarded (FR-6 AC regression)', () => {
+  for (const id of SECONDARY_W3_IDS) {
+    const mod = /** @type {LayerModule} */ (list().find((m) => m.meta.id === id))
+    const driverName = SECONDARY_W3_DRIVER[id]
+    test(`type ${id} ${mod.meta.name}: driver "${driverName}" has a strictly positive min`, () => {
+      assert(driverName !== undefined, `no driver param mapped for secondary W3 type ${id}`)
+      const decl = mod.params.find((p) => p.name === driverName)
+      assert(decl !== undefined, `type ${id}: no "${driverName}" param`)
+      assertEq(decl.kind, 'A', `type ${id}: "${driverName}" must be animatable`)
+      // Strictly > 0 — the FR-6 "renders nothing at every bound" AC needs
+      // headroom, not merely non-negativity.
+      assert(
+        decl.min > 0,
+        `type ${id}: "${driverName}".min ${decl.min} must be > 0 to guarantee a visible field`,
+      )
+    })
+  }
+})
+
 suite('layers — Flag 4 in the real catalog: layer `opacity` composes with the envelope', () => {
   test('Scan Lines: band pixel = envelope × band opacity, not either alone', () => {
     const params = pinnedParams(/** @type {LayerModule} */ (list().find((m) => m.meta.id === 14)), 'mid')
