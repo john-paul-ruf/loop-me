@@ -697,8 +697,9 @@ function buildAdvanced(decl, layer, av, onRangeChange) {
   }
   curveSelect.appendChild(inGroup)
 
-  // Optgroup: All 20 curves
-  const allGroup = el('optgroup', { label: 'All 20 curves' })
+  // Optgroup: All curves — count derived from ALGORITHMS so the label
+  // stays true as the algorithms table grows.
+  const allGroup = el('optgroup', { label: 'All ' + ALGORITHMS.length + ' curves' })
   for (const algo of ALGORITHMS) {
     // Skip ones already in the character pool (they're in the first group)
     if (charPool.includes(algo.id)) continue
