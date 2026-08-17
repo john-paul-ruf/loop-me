@@ -22,7 +22,7 @@
  * envelope's rather than overwriting it (or vice versa).
  */
 
-import { suite, test, assert } from './harness.js'
+import { suite, test, assert, assertEq } from './harness.js'
 import { setTarget, paint } from '../src/render/painter.js'
 import { prewarm } from '../src/render/prepare.js'
 import { state } from '../src/core/state.js'
@@ -276,6 +276,57 @@ suite('layers — glitch composed sweep (base + glitch, FR-6 AC via §6.4 self-s
         // Void by design (nothing to sample) but the FR-18 fence must not
         // fire — no throw, no error report.
         paintOne(makeLayer(mod.meta.id, pinnedParams(mod, which)))
+      }
+    })
+  }
+})
+
+/**
+ * The driving A param on every glitch type — the one whose value at `min`
+ * must be > 0 for the layer to actually redistribute pixels. A bounds
+ * regression here reads as "the glitch does nothing at low bounds" and
+ * would slip past the sweep above because the sweep tolerates the null
+ * case gracefully.
+ * @type {Record<number, string>}
+ */
+const DRIVER = {
+  33: 'jolt',    // px — bands with zero shift are invisible
+  34: 'shift',   // px — zero shift collapses R and cyan onto the original
+  35: 'density', // ratio — density=0 rounds to 1 block but the sweep can't guarantee more
+  36: 'roll',    // px — roll=0 makes both wrap blits no-ops
+}
+
+suite('layers — glitch min-bound visibility floors are guarded (FR-6 AC regression)', () => {
+  for (const mod of glitchLayers) {
+    const driverName = DRIVER[mod.meta.id]
+    test(`type ${mod.meta.id} ${mod.meta.name}: driver "${driverName}" has a strictly positive min`, () => {
+      assert(driverName !== undefined, `no driver param mapped for glitch type ${mod.meta.id}`)
+      const decl = mod.params.find((p) => p.name === driverName)
+      assert(decl !== undefined, `type ${mod.meta.id}: no "${driverName}" param`)
+      assertEq(decl.kind, 'A', `type ${mod.meta.id}: "${driverName}" must be animatable`)
+      // Strictly > 0 — the "renders nothing at every bound" AC needs
+      // headroom, not merely non-negativity.
+      assert(
+        decl.min > 0,
+        `type ${mod.meta.id}: "${driverName}".min ${decl.min} must be > 0 to guarantee visible motion`,
+      )
+    })
+  }
+})
+
+suite('layers — glitch determinism (FR-4: same seed, same frame → same pixels)', () => {
+  for (const mod of glitchLayers) {
+    test(`type ${mod.meta.id} ${mod.meta.name}: base + glitch is bit-for-bit stable across paints`, () => {
+      // prepare's fixed rng consumption + resolve's pure `findValue` +
+      // painter's identity-transform contract combine to make this exact.
+      const params = pinnedParams(mod, 'mid')
+      const a = new Uint8ClampedArray(paintComposed(mod.meta.id, params))
+      const b = new Uint8ClampedArray(paintComposed(mod.meta.id, params))
+      assertEq(a.length, b.length, 'read-back length changed between paints')
+      // A stride sample is enough — a determinism regression alters
+      // pixels near-uniformly (rng offset), not just at a few points.
+      for (let i = 0; i < a.length; i += 4 * 61) {
+        assertEq(a[i], b[i], `red channel drift at byte ${i}`)
       }
     })
   }
