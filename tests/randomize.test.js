@@ -422,6 +422,45 @@ suite('randomize — taste rule 5: flash safety (FR-17 ≤ 3 Hz)', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Glitch distribution smoke test (§8.5 rule 1 extension, tuning-observation)
+// ---------------------------------------------------------------------------
+
+suite('randomize — glitch distribution (§8.5 rule 1)', () => {
+  test('~20–50% of 3+-layer compositions contain a glitch layer; never twice', () => {
+    // The wantGlitch gate fires at p = 0.35 for every non-warned generation
+    // whose `total` drew ≥ 3, so the empirical rate in the 3+-layer subset
+    // should track that number. Bounds are loose (20–50%) to pin behaviour
+    // rather than the exact probability — a re-tune in a future session should
+    // land inside them if the change is a nudge and outside if it is a rewrite.
+    //
+    // With intRange(2, 5) uniform, ~75% of 300 runs are 3+-layer, so the
+    // 3σ ≈ 0.09 around 0.35 sits comfortably inside 0.20–0.50.
+    //
+    // Seed-free: generate() uses Math.random() (module's documented exception).
+    let denom = 0
+    let numer = 0
+    for (let i = 0; i < 300; i++) {
+      const c = generate()
+      if (c.layers.length < 3) continue
+      denom++
+      let g = 0
+      for (const layer of c.layers) {
+        const mod = list().find((m) => m.meta.id === layer.type)
+        if (mod && mod.meta.role === 'glitch') g++
+      }
+      assert(g <= 1,
+        `generate() #${i}: ${g} glitch layers — expected at most 1 (never twice)`)
+      if (g === 1) numer++
+    }
+    assert(denom > 0,
+      '300 runs produced zero 3+-layer compositions — extremely unlikely, investigate')
+    const rate = numer / denom
+    assert(rate >= 0.20 && rate <= 0.50,
+      `glitch rate ${rate.toFixed(3)} in 3+-layer stacks (n=${denom}), expected 0.20–0.50`)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Determinism (FR-4): Math.random is only at the top — downstream is seeded
 // ---------------------------------------------------------------------------
 
