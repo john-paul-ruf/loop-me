@@ -27,6 +27,22 @@
  * avoid assigning a `scale` range that sits entirely below 0.5.
  *
  * Imports `model/params.js` only (§4 rule 2). Consumes zero PRNG draws.
+ *
+ * **per-effect-glow (feature) — additive re-fill of the on-cells.** When
+ * `glowStrength > 0`, `draw` re-accumulates the very same "on" rects and
+ * commits one more fill under `globalCompositeOperation = 'lighter'` BEFORE
+ * the crisp fill — brightens each lit cell without spilling past its
+ * boundary, preserving the layer's checkerboard identity. The `mid` bounds
+ * used by the SESSION-01 glow suite (`scale = 0.55`) put crest cells above
+ * the `≥ 0.5` gate, so the on-cell path is non-empty and `gs=1` is visibly
+ * brighter than `gs=0`. FR-6: NO `shadowBlur`; §6.5: zero per-frame
+ * allocation. `gs === 0` is a hard no-op → byte-identical to pre-glow. See
+ * `src/util/glow.js` for the canonical draw-time idiom.
+ *
+ * The `SOLO_SWEEP_EXCLUSIONS` waiver in `tests/layers.test.js` (id 24)
+ * covers the `scale.min = 0.1` all-off frame; the glow pass does nothing
+ * there because there are no on-cells to re-fill — the exclusion still
+ * holds, glow adds no new blank-frame path.
  */
 
 import { A, S } from '../model/params.js'
@@ -37,7 +53,9 @@ export const meta = {
   name: 'Checker Wave',
   role: 'secondary',
   blurb: 'A checkerboard whose density flows across the frame.',
-  worstCase: { pathOps: 2304, drawCalls: 1 },
+  // Worst case doubles under the glow pass: one extra rect accumulation of
+  // the same on-cells + one extra fill under 'lighter'.
+  worstCase: { pathOps: 4608, drawCalls: 2 },
   fullCanvasOpaque: false,
 }
 
@@ -47,6 +65,10 @@ export const params = [
   A('waveAngle', 0, 360, { unit: '°', wrap: true }),
   S.int('waveFreq', 1, 6, { default: 2 }),
   A('scale', 0.1, 1.0, { default: { min: 0.35, max: 0.95 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
@@ -101,10 +123,39 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const theta = /** @type {number} */ (resolved.waveAngle) * DEG
   const scale = /** @type {number} */ (resolved.scale)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { cols, rows, size, x0, y0, freq } = prepared
   const c = Math.cos(theta)
   const s = Math.sin(theta)
   const k = (TWO_PI * freq) / DIAG
+
+  ctx.fillStyle = prepared.color
+
+  // Glow pass — drawn FIRST so the crisp cells sit on top (halo under mark).
+  // Same on-cell geometry, additive re-fill under 'lighter'. `gs === 0` is a
+  // hard no-op → byte-identical to pre-glow. See `src/util/glow.js`.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.beginPath()
+    for (let row = 0; row < rows; row++) {
+      const y = y0 + row * size
+      const dy = (y - CY) * s
+      for (let col = 0; col < cols; col++) {
+        const x = x0 + col * size
+        const phase = ((x - CX) * c + dy) * k
+        const f = 0.5 + 0.5 * Math.cos(phase)
+        if (scale * f >= 0.5) {
+          ctx.rect(x - size / 2, y - size / 2, size, size)
+        }
+      }
+    }
+    ctx.fill()
+    ctx.restore()
+    // `fillStyle` survives `restore()` since it was set before `save()`.
+  }
 
   ctx.beginPath()
   for (let row = 0; row < rows; row++) {
@@ -119,6 +170,5 @@ export function draw(ctx, resolved, prepared, palette) {
       }
     }
   }
-  ctx.fillStyle = prepared.color
   ctx.fill()
 }

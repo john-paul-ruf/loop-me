@@ -27,6 +27,20 @@
  * The multiplier uses `range(rng, lo, hi)` exactly as orbit-dots does.
  *
  * Imports `model/params.js` and `core/rng.js` (§4 rule 2).
+ *
+ * **per-effect-glow (feature) — widened additive re-fill of the same dot
+ * path (orbit-dots option B).** When `glowStrength > 0`, `draw`
+ * re-accumulates every dot at radius `base × mult × K_GLOW` and commits one
+ * additional `fill()` under `globalCompositeOperation = 'lighter'` BEFORE
+ * the crisp fill — a soft halo around each dot, crisp dots on top (halo
+ * under mark). Chosen over `glowSprite` per dot because stipple-field has
+ * no natural clusters and per-dot sprites would blow the drawCall budget at
+ * `dotCount = 300`; the single-pass widened re-fill matches orbit-dots'
+ * ring-level halo pattern (one extra fill, dots widened by K_GLOW) and
+ * costs one extra `fill()` regardless of density. FR-6: NO `shadowBlur`;
+ * §6.5: zero per-frame allocation. `gs === 0` is a hard no-op →
+ * byte-identical to pre-glow. See `src/util/glow.js` for the canonical
+ * draw-time idiom.
  */
 
 import { A, S } from '../model/params.js'
@@ -38,7 +52,9 @@ export const meta = {
   name: 'Stipple Field',
   role: 'secondary',
   blurb: 'A breathing cloud of dots scattered by a seed.',
-  worstCase: { pathOps: 300, drawCalls: 1 },
+  // Worst case doubles under the glow pass: one extra widened `fill()` +
+  // one extra widened dot arc per stipple (300 → 600 arcs, 1 → 2 fills).
+  worstCase: { pathOps: 600, drawCalls: 2 },
   fullCanvasOpaque: false,
 }
 
@@ -50,6 +66,10 @@ export const params = [
   A('driftX', 0, 360, { default: { min: 0, max: 180 } }),
   A('driftY', 0, 360, { default: { min: 0, max: 240 } }),
   S.num('sizeSpread', 0.5, 3.0, { default: 1.5 }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -58,6 +78,15 @@ const TWO_PI = Math.PI * 2
 /** Max centre offsets: keeps every dot centre ≥ 100 px inside the canvas. */
 const SPREAD_X = 440
 const SPREAD_Y = 860
+/**
+ * Dot-radius multiplier for the additive re-fill glow pass. Matches
+ * orbit-dots' K_GLOW (dot archetype): below 1.4 the halo hides inside the
+ * crisp dot at tiny `baseRadius = 1` bounds, above 2.5 halos of adjacent
+ * dots merge into an ambient wash on dense (`dotCount = 300`) fields. 1.8
+ * gives every stipple a visibly wider ring of light without collapsing the
+ * cloud into a haze.
+ */
+const K_GLOW = 1.8
 
 /**
  * @typedef {object} StippleFieldPrepared
@@ -110,10 +139,33 @@ export function draw(ctx, resolved, prepared, palette) {
   const base = /** @type {number} */ (resolved.baseRadius)
   const driftX = /** @type {number} */ (resolved.driftX)
   const driftY = /** @type {number} */ (resolved.driftY)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { count, dx, dy, mult } = prepared
 
   ctx.fillStyle = prepared.color
   ctx.translate(driftX, driftY)
+
+  // Glow pass — drawn FIRST so the crisp dots sit on top (halo under mark).
+  // Same dot centres (translated by drift), radius scaled by `K_GLOW`,
+  // colour re-filled under 'lighter'. `gs === 0` is a hard no-op →
+  // byte-identical to pre-glow. See `src/util/glow.js`.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.beginPath()
+    for (let i = 0; i < count; i++) {
+      const r = base * mult[i] * K_GLOW
+      ctx.moveTo(dx[i] + r, dy[i])
+      ctx.arc(dx[i], dy[i], r, 0, TWO_PI)
+    }
+    ctx.fill()
+    ctx.restore()
+    // `fillStyle` survives `restore()` since it was set before `save()`.
+    // The `translate()` above is preserved too — the crisp pass below draws
+    // at the same translated origin.
+  }
 
   ctx.beginPath()
   for (let i = 0; i < count; i++) {
