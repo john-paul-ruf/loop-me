@@ -20,6 +20,15 @@
  * direction), so at least one line crosses the canvas at every angle.
  * `spacing` ≤ 120 means ≥ 17 lines per family — dense, never blank.
  *
+ * **per-effect-glow (S04):** wide additive re-stroke archetype. When
+ * `glowStrength > 0`, `draw` re-runs the two-family stroke sequence in the
+ * SAME family order (A then B) once BEFORE the crisp pass under
+ * `globalCompositeOperation = 'lighter'` at `lineWidth × K_GLOW` — matching
+ * the crisp ordering keeps the halo reading as one coherent weave (over/
+ * under stacking of the two families is preserved). No `shadowBlur` (FR-6);
+ * `gs === 0` is a hard no-op → pre-glow seeds decode byte-identical (§9.5).
+ * K = 1.8 keeps the halo modest across the dense braided pattern.
+ *
  * Imports `model/params.js` only (§4 rule 2). Consumes zero PRNG draws.
  */
 
@@ -31,7 +40,9 @@ export const meta = {
   name: 'Lattice Weave',
   role: 'secondary',
   blurb: 'Two families of strokes braiding at independent angles.',
-  worstCase: { pathOps: 600, drawCalls: 2 },
+  // Worst case doubles under the glow pass: 2 halo strokes + 2 crisp strokes,
+  // each halo path is the same shape as its crisp counterpart.
+  worstCase: { pathOps: 1200, drawCalls: 4 },
   fullCanvasOpaque: false,
 }
 
@@ -42,6 +53,10 @@ export const params = [
   A('spacingA', 10, 120, { default: { min: 24, max: 64 } }),
   A('spacingB', 10, 120, { default: { min: 24, max: 64 } }),
   A('weight', 1, 10, { default: { min: 1, max: 3 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -49,6 +64,12 @@ const CY = 960
 const DEG = Math.PI / 180
 const DIAG = Math.hypot(1080, 1920)
 const HALF = DIAG / 2
+/**
+ * Halo width multiplier. Dense braid — both families at spacing.min = 10 px
+ * give 221 lines each. 1.8 keeps the halo clearly wider than the mark at
+ * every `weight` without merging neighbouring lines into an ambient wash.
+ */
+const K_GLOW = 1.8
 
 /**
  * @typedef {object} LatticeWeavePrepared
@@ -98,11 +119,31 @@ export function draw(ctx, resolved, prepared, palette) {
   const aB = /** @type {number} */ (resolved.angleB) * DEG
   const spA = /** @type {number} */ (resolved.spacingA)
   const spB = /** @type {number} */ (resolved.spacingB)
+  const weight = /** @type {number} */ (resolved.weight)
+  const gs = /** @type {number} */ (resolved.glowStrength)
 
   ctx.strokeStyle = prepared.color
-  ctx.lineWidth = /** @type {number} */ (resolved.weight)
   ctx.translate(CX, CY)
 
+  // Glow pass — drawn FIRST so the crisp weave sits on top (halo under mark).
+  // Same A-then-B family order as the crisp pass so the halo's over/under
+  // stacking matches the mark's — one coherent weave halo, not a smear.
+  // `gs === 0` is a hard no-op: skip entirely for byte-identical pre-glow.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.lineWidth = weight * K_GLOW
+    ctx.rotate(aA)
+    strokeSet(ctx, spA)
+    ctx.rotate(aB - aA)
+    strokeSet(ctx, spB)
+    ctx.restore()
+    // `strokeStyle` and transform (translate CX,CY) survive `restore()`.
+  }
+
+  ctx.lineWidth = weight
   ctx.rotate(aA)
   strokeSet(ctx, spA)
 

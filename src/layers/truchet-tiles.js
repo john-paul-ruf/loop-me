@@ -29,6 +29,17 @@
  * 1080×1920 we still have 6×11 = 66 tiles → 132 arcs, dense enough to
  * read as a meandering strand.
  *
+ * **per-effect-glow (S04):** wide additive re-stroke archetype. When
+ * `glowStrength > 0`, `draw` re-runs both orientation passes once BEFORE
+ * the crisp pass under `globalCompositeOperation = 'lighter'` at
+ * `lineWidth × K_GLOW` — a soft halo under the woven mesh, crisp arcs on
+ * top. The dash pattern (setLineDash + dashOffset) is set outside the
+ * save/restore so the halo inherits the same dashed rhythm as the mark,
+ * reading as a chunkier version of the same strand rather than a
+ * continuous glow. No `shadowBlur` (FR-6); `gs === 0` is a hard no-op →
+ * pre-glow seeds decode byte-identical (§9.5). K = 2.0 keeps the halo
+ * clearly wider than the mark without merging neighbouring arcs.
+ *
  * Imports `model/params.js` only (§4 rule 2).
  */
 
@@ -40,7 +51,9 @@ export const meta = {
   name: 'Truchet Tiles',
   role: 'secondary',
   blurb: 'A woven mesh of chained quarter-arc tiles.',
-  worstCase: { pathOps: 560, drawCalls: 2 },
+  // Worst case doubles under the glow pass: 2 halo strokes + 2 crisp strokes,
+  // each halo pass strokes the same orientation-partitioned path.
+  worstCase: { pathOps: 1120, drawCalls: 4 },
   fullCanvasOpaque: false,
 }
 
@@ -50,11 +63,21 @@ export const params = [
   // width.min > 0 (2 px): a zero-weight stroke is a null figure.
   A('width', 2, 10, { default: { min: 3, max: 6 } }),
   A('flow', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
 const H = 1920
 const HALF_PI = Math.PI / 2
+/**
+ * Halo width multiplier. Up to ~299 tiles × 2 arcs at tile.min = 90 gives
+ * ~600 dashed strokes; 2.0 keeps the halo clearly wider than the mark
+ * without merging neighbouring arcs along a strand.
+ */
+const K_GLOW = 2.0
 /**
  * Fixed draw budget for the orientation table — the tightest tile size
  * (90 px) yields cols × rows = 13 × 23 = 299 slots including the +1
@@ -164,17 +187,51 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const flowDeg = /** @type {number} */ (resolved.flow)
   const width = /** @type {number} */ (resolved.width)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { cols, rows, tile, x0, y0, orient, dash } = prepared
   const r = tile / 2
 
   ctx.strokeStyle = prepared.color
-  ctx.lineWidth = width
   ctx.lineCap = 'butt'
   ctx.setLineDash(dash)
   // dashOffset = -(flow/360) · DASH_P · DASH_CYCLES so an integer number of
   // dash periods slide past every loop. Negative advances "forward" along
   // the stroke direction.
   ctx.lineDashOffset = -(flowDeg / 360) * DASH_P * DASH_CYCLES
+
+  // Glow pass — both orientations drawn FIRST so the crisp weave sits on
+  // top (halo under mark). The dash pattern is set BEFORE `save` so the
+  // halo inherits the same dashed rhythm as the mark. `gs === 0` is a
+  // hard no-op: skip entirely for byte-identical pre-glow output.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.lineWidth = width * K_GLOW
+    // Halo pass 0 — orientation 0 tiles.
+    ctx.beginPath()
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if (orient[row * cols + col] !== 0) continue
+        emitTile(ctx, x0 + col * tile, y0 + row * tile, r, 0)
+      }
+    }
+    ctx.stroke()
+    // Halo pass 1 — orientation 1 tiles.
+    ctx.beginPath()
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if (orient[row * cols + col] !== 1) continue
+        emitTile(ctx, x0 + col * tile, y0 + row * tile, r, 1)
+      }
+    }
+    ctx.stroke()
+    ctx.restore()
+    // `strokeStyle`, dash + offset + lineCap all survive `restore()`.
+  }
+
+  ctx.lineWidth = width
 
   // Pass 0 — every tile whose orientation bit is 0.
   ctx.beginPath()
