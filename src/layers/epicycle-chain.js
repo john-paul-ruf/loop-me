@@ -23,6 +23,17 @@
  * arm), always. All per-frame arrays (`pivotX/Y`) live on the prepared
  * cache so `draw` allocates nothing (§6.5).
  *
+ * **per-effect-glow — wide re-stroke of the closed sum-path (pulse-rings
+ * archetype).** The sum-path IS the primary shape — the traced Fourier
+ * curve; the chain + pivots are ephemeral overlays showing where the
+ * machine is "now". Glow lives under the sum-path only: same polyline
+ * accumulated once on the ctx path (§6.5, no rebuild), stroked wide+
+ * `'lighter'` first as the halo, then crisp on top. Loop closure is
+ * preserved because both strokes trace the same integer-harmonic samples.
+ * `gs === 0` is a hard no-op — pre-glow seeds render byte-identical
+ * (§9.5). FR-6 AC: NO `shadowBlur`. See `src/util/glow.js` for the
+ * canonical draw-time idiom and the `glowStrength` param convention.
+ *
  * Imports `model/params.js` only (§4 rule 2).
  */
 
@@ -34,7 +45,9 @@ export const meta = {
   name: 'Epicycle Chain',
   role: 'primary',
   blurb: 'A Fourier chain tracing its own closed sum-path.',
-  worstCase: { pathOps: 740, drawCalls: 3 },
+  // Worst case adds one wide re-stroke of the 720-sample sum-path: pathOps
+  // unchanged (path built once, stroked twice), drawCalls 3 → 4.
+  worstCase: { pathOps: 740, drawCalls: 4 },
   fullCanvasOpaque: false,
 }
 
@@ -45,6 +58,11 @@ export const params = [
   // 0.15 × 1080 ≈ 162 px base radius — always visible under the sweep.
   A('scale', 0.15, 0.35, { default: { min: 0.18, max: 0.3 } }),
   A('phase', 0, 360, { unit: '°', wrap: true, default: { min: 0, max: 360 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow
+  // (architecture §9.5).
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -62,6 +80,12 @@ const SPEED_MAX = 5
 const TIP_DOT_R = 8
 const CHAIN_ALPHA = 0.4
 const TIP_ALPHA = 0.85
+/**
+ * Halo width multiplier for the wide re-stroke of the sum-path. Matches
+ * pulse-rings' 2.5× — clearly wider than the crisp 2.5px stroke at every
+ * `scale`, without swamping the traced curve's finer harmonics.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} EpicycleChainPrepared
@@ -144,6 +168,7 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const scale = /** @type {number} */ (resolved.scale) * BASE
   const phaseRad = /** @type {number} */ (resolved.phase) * DEG
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { arms, radii, speeds, spread, sumX, sumY, pivotX, pivotY } = prepared
 
   ctx.translate(CX, CY)
@@ -152,8 +177,9 @@ export function draw(ctx, resolved, prepared, palette) {
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
 
-  // Draw 1 — the static traced sum-path. Same pixels every frame.
-  ctx.lineWidth = 2.5
+  // Accumulate the sum-path once — `lineWidth` differs between glow and
+  // crisp, but the path samples are identical (loop-closed integer harmonics
+  // preserved under both strokes).
   ctx.beginPath()
   for (let i = 0; i < N; i++) {
     const x = scale * sumX[i]
@@ -161,6 +187,24 @@ export function draw(ctx, resolved, prepared, palette) {
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   }
+
+  // Glow pass — wide re-stroke first, halo under the crisp sum-path. Only
+  // the primary shape (sum-path) glows; the chain + pivots are ephemeral
+  // "now" markers, not marks. `gs === 0` is a hard no-op. See
+  // `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.lineWidth = 2.5 * K_GLOW
+    ctx.stroke()
+    ctx.restore()
+    // `strokeStyle`/`lineJoin`/`lineCap` survive `restore()` — set before `save()`.
+  }
+
+  // Draw 1 — the static traced sum-path. Same pixels every frame.
+  ctx.lineWidth = 2.5
   ctx.stroke()
 
   // Compute the arm chain's current pivots at `phase`. `phase` is a
