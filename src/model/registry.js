@@ -45,6 +45,7 @@ import * as softTint from '../layers/soft-tint.js'
 import * as dotHaze from '../layers/dot-haze.js'
 import * as stripeSweep from '../layers/stripe-sweep.js'
 import * as sliceShift from '../layers/slice-shift.js'
+import * as rgbSplit from '../layers/rgb-split.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -274,3 +275,4 @@ register(softTint)
 register(dotHaze)
 register(stripeSweep)
 register(sliceShift)
+register(rgbSplit)
