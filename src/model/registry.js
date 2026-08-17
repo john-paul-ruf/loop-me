@@ -79,6 +79,9 @@ import * as interferenceRipple from '../layers/interference-ripple.js'
 import * as flowStrands from '../layers/flow-strands.js'
 import * as halftoneSweep from '../layers/halftone-sweep.js'
 import * as bokehDrift from '../layers/bokeh-drift.js'
+import * as auroraVeil from '../layers/aurora-veil.js'
+import * as starTwinkle from '../layers/star-twinkle.js'
+import * as anamorphicFlare from '../layers/anamorphic-flare.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -329,3 +332,6 @@ register(interferenceRipple)
 register(flowStrands)
 register(halftoneSweep)
 register(bokehDrift)
+register(auroraVeil)
+register(starTwinkle)
+register(anamorphicFlare)

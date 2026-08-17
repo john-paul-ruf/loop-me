@@ -92,6 +92,9 @@ const VIZ_CLASS = {
   52: 'v-flow',
   53: 'v-halftone',
   54: 'v-bokeh',
+  55: 'v-aurora',
+  56: 'v-twinkle',
+  57: 'v-flare',
 }
 
 /** Role dot class per role name. */

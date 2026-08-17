@@ -246,7 +246,8 @@ const NAMES = [
   'Star Polygon', 'Superellipse Stack',
   'Hex Lattice', 'Truchet Tiles', 'Voronoi Shards',
   'Interference Ripple', 'Flow Strands',
-  'Halftone Sweep', 'Bokeh Drift',
+  'Halftone Sweep', 'Bokeh Drift', 'Aurora Veil',
+  'Star Twinkle', 'Anamorphic Flare',
 ]
 
 suite(`registry — the ${NAMES.length}-type catalog pin (architecture §8.2, FR-6)`, () => {
@@ -308,6 +309,9 @@ suite(`registry — the ${NAMES.length}-type catalog pin (architecture §8.2, FR
       52: [2280, 8],
       53: [1100, 6],
       54: [0, 16],
+      55: [110, 4],
+      56: [150, 8],
+      57: [6, 9],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -460,6 +464,9 @@ suite('registry — omni-wave overlay W3 pin (IDs 53–57)', () => {
   const ROWS = [
     { id: 53, name: 'Halftone Sweep',    role: 'overlay', pathOps: 1100, drawCalls: 6 },
     { id: 54, name: 'Bokeh Drift',       role: 'overlay', pathOps: 0,    drawCalls: 16 },
+    { id: 55, name: 'Aurora Veil',       role: 'overlay', pathOps: 110,  drawCalls: 4 },
+    { id: 56, name: 'Star Twinkle',      role: 'overlay', pathOps: 150,  drawCalls: 8 },
+    { id: 57, name: 'Anamorphic Flare',  role: 'overlay', pathOps: 6,    drawCalls: 9 },
   ]
   for (const row of ROWS) {
     test(`type ${row.id} ${row.name} — id, name, role, worstCase`, () => {
