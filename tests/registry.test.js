@@ -1,14 +1,14 @@
 // @ts-check
 /**
  * Pins the two append-only ID spaces: blend modes (7 entries) and layer types
- * (36 across the D4, double-catalog, and glitch-effects waves — the catalog
- * IDs 1–36 pin below is live, per architecture §5.3 step 3).
+ * (42 across the D4, double-catalog, glitch-effects, and omni-wave glitch W2
+ * waves — the catalog IDs 1–42 pin below is live, per architecture §5.3 step 3).
  *
  * The earlier layer-type assertions are written as invariants that held at
  * every point of the build; the wave suites append literal pins: exact IDs,
  * names, roles, and the §10.2 worstCase table row by row. Test suites also
  * register synthetic types (IDs ≥ 900 by convention), so the catalog pins
- * filter to id ≤ 36 — the current append-only frontier.
+ * filter to id ≤ 42 — the current append-only frontier.
  */
 
 import { suite, test, assert, assertEq, assertThrows } from './harness.js'
@@ -209,16 +209,18 @@ suite('registry — layer type catalog (architecture §5.3, §8.2)', () => {
 })
 
 // ---------------------------------------------------------------------------
-// D4 — the catalog is complete. Literal pins from here down.
+// D4 — the catalog frontier. Literal pins from here down.
+// The frontier bumps as each omni-wave chain session (S01–S04) lands its
+// ID block: 42 → 47 → 52 → 57. Synthetic test types stay at IDs ≥ 900.
 // ---------------------------------------------------------------------------
 
 /** The real catalog, without any suite's synthetic types. */
 function catalog() {
-  return list().filter((m) => m.meta.id <= 36)
+  return list().filter((m) => m.meta.id <= 42)
 }
 
-suite('registry — the 36-type catalog pin (architecture §8.2, FR-6)', () => {
-  test('exactly types 1–36, in ID order, names pinned', () => {
+suite('registry — the 39-type catalog pin (architecture §8.2, FR-6)', () => {
+  test('exactly types 1–39, in ID order, names pinned', () => {
     // Changing a line here silently orphans every seed that stores the ID.
     const NAMES = [
       'Ray Rings', 'Nth Rings', 'Layered Poly', 'Encircled Spiral',
@@ -232,10 +234,11 @@ suite('registry — the 36-type catalog pin (architecture §8.2, FR-6)', () => {
       'Light Leak', 'Soft Tint', 'Dot Haze',
       'Stripe Sweep',
       'Slice Shift', 'RGB Split', 'Block Static', 'Sync Roll',
+      'Mirror Fold', 'Interlace Comb', 'Zoom Echo',
     ]
     const cat = catalog()
-    assertEq(cat.length, 36, 'the catalog holds exactly 36 types')
-    for (let i = 0; i < 36; i++) {
+    assertEq(cat.length, 39, 'the catalog holds exactly 39 types')
+    for (let i = 0; i < 39; i++) {
       assertEq(cat[i].meta.id, i + 1, `position ${i} carries ID ${i + 1}`)
       assertEq(cat[i].meta.name, NAMES[i], `ID ${i + 1} name`)
     }
@@ -268,6 +271,9 @@ suite('registry — the 36-type catalog pin (architecture §8.2, FR-6)', () => {
       34: [0, 6],
       35: [0, 32],
       36: [1, 5],
+      37: [0, 1],
+      38: [0, 32],
+      39: [0, 5],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -293,7 +299,7 @@ suite('registry — the 36-type catalog pin (architecture §8.2, FR-6)', () => {
     // which is exactly why B1 deferred this test until the catalog existed.
     assertThrows(() => register(one), 'duplicate ID must be rejected')
     assertEq(get(1), one, 'the original module is still registered')
-    assertEq(catalog().length, 36, 'catalog unchanged')
+    assertEq(catalog().length, 39, 'catalog unchanged')
   })
 
   test('the reserved statics keys are rejected as param names (D4 scratch injection)', () => {
@@ -310,4 +316,32 @@ suite('registry — the 36-type catalog pin (architecture §8.2, FR-6)', () => {
     }
     assertEq(get(9802), null, 'nothing was registered')
   })
+})
+
+// ---------------------------------------------------------------------------
+// omni-wave glitch W2 — literal per-type pins for IDs 37–42.
+// Mirrors the glitch-effects wave's pinning shape (id, name, role, worstCase
+// as separate row assertions) so a regression names the offending row rather
+// than the shared table.
+// ---------------------------------------------------------------------------
+
+suite('registry — omni-wave pin (IDs 37–42)', () => {
+  /** @type {Array<{id: number, name: string, role: string, pathOps: number, drawCalls: number}>} */
+  const ROWS = [
+    { id: 37, name: 'Mirror Fold',    role: 'glitch', pathOps: 0, drawCalls: 1 },
+    { id: 38, name: 'Interlace Comb', role: 'glitch', pathOps: 0, drawCalls: 32 },
+    { id: 39, name: 'Zoom Echo',      role: 'glitch', pathOps: 0, drawCalls: 5 },
+  ]
+  for (const row of ROWS) {
+    test(`type ${row.id} ${row.name} — id, name, role, worstCase`, () => {
+      const mod = get(row.id)
+      assert(mod !== null, `type ${row.id} must be registered`)
+      assertEq(mod.meta.id, row.id, 'id')
+      assertEq(mod.meta.name, row.name, 'name')
+      assertEq(mod.meta.role, row.role, 'role')
+      assertEq(mod.meta.worstCase.pathOps, row.pathOps, 'pathOps')
+      assertEq(mod.meta.worstCase.drawCalls, row.drawCalls, 'drawCalls')
+      assertEq(mod.meta.fullCanvasOpaque, false, 'glitch layers never claim full-canvas opacity')
+    })
+  }
 })

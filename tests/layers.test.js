@@ -294,6 +294,9 @@ const DRIVER = {
   34: 'shift',   // px — zero shift collapses R and cyan onto the original
   35: 'density', // ratio — density=0 rounds to 1 block but the sweep can't guarantee more
   36: 'roll',    // px — roll=0 makes both wrap blits no-ops
+  37: 'reach',   // fraction — reach=0 mirrors a zero-width strip
+  38: 'shear',   // px — alternating shift collapses to no-op at 0
+  39: 'fade',    // alpha per echo — at 0 every echo composites invisibly
 }
 
 suite('layers — glitch min-bound visibility floors are guarded (FR-6 AC regression)', () => {
