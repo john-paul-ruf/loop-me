@@ -12,6 +12,15 @@
  * `setTransform` is absolute, so no save/restore per copy is needed; the
  * painter's per-layer restore (§6.4) puts the transform back.
  * Consumes zero PRNG draws.
+ *
+ * **per-effect-glow — wide re-stroke per copy (pulse-rings archetype).**
+ * `lineWidth` varies per copy (weight / scale), so the glow pass walks the
+ * same 12-copy schedule as the crisp pass — one guarded `'lighter'` loop
+ * first with `weight × K_GLOW / scale`, the crisp loop second. The unit
+ * `Path2D` is stroked in both. `gs === 0` is a hard no-op — pre-glow seeds
+ * render byte-identical (§9.5). FR-6 AC: NO `shadowBlur`. §6.5: no
+ * per-frame allocation. See `src/util/glow.js` for the canonical draw-time
+ * idiom and the `glowStrength` param convention.
  */
 
 import { A, S } from '../model/params.js'
@@ -22,7 +31,10 @@ export const meta = {
   name: 'Layered Poly',
   role: 'primary',
   blurb: 'Nested polygons spiralling inward, turning as they shrink.',
-  worstCase: { pathOps: 144, drawCalls: 12 },
+  // Worst case doubles under the glow pass: 12 copies × (crisp stroke +
+  // glow stroke) = 24 drawCalls. pathOps: sides × copies × 2 passes = 12 ×
+  // 12 × 2 = 288.
+  worstCase: { pathOps: 288, drawCalls: 24 },
   fullCanvasOpaque: false,
 }
 
@@ -35,11 +47,22 @@ export const params = [
   A('rotation', 0, 360, { unit: '°', wrap: true }),
   S.num('rotationStep', -30, 30, { unit: '°', default: 10 }),
   A('strokeWeight', 1, 16, { default: { min: 2, max: 6 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow
+  // (architecture §9.5).
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
 const CY = 960
 const DEG = Math.PI / 180
+/**
+ * Halo width multiplier for the wide re-stroke glow pass. Matches
+ * pulse-rings' 2.5× — the per-copy widening reads as a soft aura on each
+ * nested polygon at every `strokeWeight` and `scaleStep` combination.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} LayeredPolyPrepared
@@ -94,10 +117,34 @@ export function draw(ctx, resolved, prepared, palette) {
   const base = /** @type {number} */ (resolved.baseRadius)
   const rot = /** @type {number} */ (resolved.rotation) * DEG
   const weight = /** @type {number} */ (resolved.strokeWeight)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { count, path, scales, stepRad } = prepared
 
   ctx.strokeStyle = prepared.color
   ctx.lineJoin = 'round'
+
+  // Glow pass — halo under mark. Same per-copy transform schedule as the
+  // crisp pass, only `lineWidth` scaled by K_GLOW. `gs === 0` is a hard
+  // no-op: skip entirely for byte-identical pre-glow output. See
+  // `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    for (let k = 0; k < count; k++) {
+      const s = base * scales[k]
+      const a = rot + stepRad * k
+      const c = Math.cos(a) * s
+      const n = Math.sin(a) * s
+      ctx.setTransform(c, n, -n, c, CX, CY)
+      ctx.lineWidth = (weight * K_GLOW) / s
+      ctx.stroke(path)
+    }
+    ctx.restore()
+    // `strokeStyle`/`lineJoin` survive `restore()` — set before `save()`.
+  }
+
   for (let k = 0; k < count; k++) {
     const s = base * scales[k]
     const a = rot + stepRad * k

@@ -24,6 +24,16 @@
  * into the angle table). Consumes exactly 1 rng draw in prepare (the `k`
  * pick) — FR-4 cross-device draw-count contract.
  *
+ * **per-effect-glow — wide re-stroke per layer (pulse-rings archetype,
+ * two-loop form).** `lineWidth` varies per concentric layer (thins with the
+ * scale), so the glow pass rebuilds each layer's path just like the crisp
+ * pass — one guarded `'lighter'` loop first (halo under the marks), the
+ * crisp loop second. Both loops walk the same skip-schedule so every echo
+ * pair stays coherent. `gs === 0` is a hard no-op — pre-glow seeds render
+ * byte-identical (§9.5). FR-6 AC: NO `shadowBlur`. §6.5: no per-frame
+ * allocation. See `src/util/glow.js` for the canonical draw-time idiom and
+ * the `glowStrength` param convention.
+ *
  * Imports `model/params.js` only (§4 rule 2).
  */
 
@@ -35,7 +45,11 @@ export const meta = {
   name: 'Star Polygon',
   role: 'primary',
   blurb: 'A {n/k} skip-star, breathing and turning in concentric echoes.',
-  worstCase: { pathOps: 40, drawCalls: 3 },
+  // Worst case doubles under glow: at n=12, layers=3 → 3 × 12 = 36 chord
+  // pathOps built per pass × 2 passes = 72. drawCalls: 3 (crisp) + 3 (glow)
+  // = 6. Original 40 pathOps rounded generously; new rounds to 80 for the
+  // same safety margin.
+  worstCase: { pathOps: 80, drawCalls: 6 },
   fullCanvasOpaque: false,
 }
 
@@ -47,6 +61,11 @@ export const params = [
   // pulse.min > 0: at 0 the star collapses to a point. 0.7 keeps the star
   // clearly readable at every sweep bound (FR-6 AC visibility floor).
   A('pulse', 0.7, 1, { default: { min: 0.85, max: 1 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow
+  // (architecture §9.5).
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -56,6 +75,12 @@ const BASE_R = 460
 const DEG = Math.PI / 180
 const TWO_PI = Math.PI * 2
 const LAYER_SCALE = 0.85
+/**
+ * Halo width multiplier for the wide re-stroke glow pass. Matches
+ * pulse-rings' 2.5× — visible on both the outer layer (heavier stroke) and
+ * the inner echoes (thinner stroke) without swamping the {n/k} identity.
+ */
+const K_GLOW = 2.5
 
 /**
  * Greatest common divisor — trivial Euclid. Used once at prepare time to
@@ -147,6 +172,7 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const rot = /** @type {number} */ (resolved.rot) * DEG
   const pulse = /** @type {number} */ (resolved.pulse)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { n, layers, vCos, vSin, order } = prepared
 
   ctx.translate(CX, CY)
@@ -154,6 +180,34 @@ export function draw(ctx, resolved, prepared, palette) {
   ctx.strokeStyle = prepared.color
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
+
+  // Glow pass — halo under mark. Same skip-schedule and radii as the crisp
+  // pass; only `lineWidth` is scaled by K_GLOW. `gs === 0` is a hard no-op:
+  // skip the pass entirely for byte-identical pre-glow output. See
+  // `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    for (let layer = 0; layer < layers; layer++) {
+      const scale = Math.pow(LAYER_SCALE, layer)
+      const r = BASE_R * pulse * scale
+      ctx.lineWidth = (2.5 * scale + 0.5) * K_GLOW
+      ctx.beginPath()
+      for (let i = 0; i < n; i++) {
+        const idx = order[i]
+        const x = vCos[idx] * r
+        const y = vSin[idx] * r
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.closePath()
+      ctx.stroke()
+    }
+    ctx.restore()
+    // `strokeStyle`/`lineJoin`/`lineCap` survive `restore()` — set before `save()`.
+  }
 
   // One stroke per concentric layer — up to `layers` (3) draw calls.
   // Layer i scales radius by LAYER_SCALE^i; stroke weight thins with it
