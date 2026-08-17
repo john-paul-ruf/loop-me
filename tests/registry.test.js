@@ -244,7 +244,8 @@ const NAMES = [
   'Smear Streak', 'Ghost Double', 'Contrast Crush',
   'Lissajous Weave', 'Rose Curve', 'Epicycle Chain',
   'Star Polygon', 'Superellipse Stack',
-  'Hex Lattice', 'Truchet Tiles',
+  'Hex Lattice', 'Truchet Tiles', 'Voronoi Shards',
+  'Interference Ripple', 'Flow Strands',
 ]
 
 suite(`registry — the ${NAMES.length}-type catalog pin (architecture §8.2, FR-6)`, () => {
@@ -300,6 +301,9 @@ suite(`registry — the ${NAMES.length}-type catalog pin (architecture §8.2, FR
       47: [1460, 8],
       48: [2900, 6],
       49: [560, 2],
+      50: [260, 3],
+      51: [50, 3],
+      52: [2280, 8],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -417,8 +421,11 @@ suite('registry — omni-wave primary W3 pin (IDs 43–47)', () => {
 suite('registry — omni-wave secondary W3 pin (IDs 48–52)', () => {
   /** @type {Array<{id: number, name: string, role: string, pathOps: number, drawCalls: number}>} */
   const ROWS = [
-    { id: 48, name: 'Hex Lattice',    role: 'secondary', pathOps: 2900, drawCalls: 6 },
-    { id: 49, name: 'Truchet Tiles',  role: 'secondary', pathOps: 560,  drawCalls: 2 },
+    { id: 48, name: 'Hex Lattice',         role: 'secondary', pathOps: 2900, drawCalls: 6 },
+    { id: 49, name: 'Truchet Tiles',       role: 'secondary', pathOps: 560,  drawCalls: 2 },
+    { id: 50, name: 'Voronoi Shards',      role: 'secondary', pathOps: 260,  drawCalls: 3 },
+    { id: 51, name: 'Interference Ripple', role: 'secondary', pathOps: 50,   drawCalls: 3 },
+    { id: 52, name: 'Flow Strands',        role: 'secondary', pathOps: 2280, drawCalls: 8 },
   ]
   for (const row of ROWS) {
     test(`type ${row.id} ${row.name} — id, name, role, worstCase`, () => {

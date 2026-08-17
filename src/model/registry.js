@@ -7,7 +7,7 @@
  * (architecture §4 rule 3) — that restriction is what keeps every other
  * subsystem walking the declaration rather than the catalog.
  *
- * Layer type IDs 1–49 are append-only forever, same rule as algorithm and
+ * Layer type IDs 1–52 are append-only forever, same rule as algorithm and
  * blend IDs. `tests/registry.test.js` pins the exact ordering. Waves so
  * far: D1 (1), D2 (2–7), D3 (8–12), D4 (13–16), the double-catalog wave
  * (17–32), the glitch-effects wave (33–36 — role `glitch`, layers that
@@ -16,8 +16,9 @@
  * glitch W2 (37–42 — six more self-sampling glitch types on the same
  * contract), the omni-wave primary W3 (43–47 — five closed-curve
  * centerpieces with integer-harmonic loop closure), the omni-wave
- * secondary W3 (48–49 so far — full-field field textures closing loops via
- * radial-wave phase wrap and dash-phase advance).
+ * secondary W3 (48–52 — five full-frame field textures closing loops via
+ * radial-wave phase wrap, dash-phase advance, ring-advance families, and
+ * cached-streamline replay).
  */
 
 import { PARAM_KINDS } from './params.js'
@@ -70,6 +71,9 @@ import * as starPolygon from '../layers/star-polygon.js'
 import * as superellipseStack from '../layers/superellipse-stack.js'
 import * as hexLattice from '../layers/hex-lattice.js'
 import * as truchetTiles from '../layers/truchet-tiles.js'
+import * as voronoiShards from '../layers/voronoi-shards.js'
+import * as interferenceRipple from '../layers/interference-ripple.js'
+import * as flowStrands from '../layers/flow-strands.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -315,3 +319,6 @@ register(starPolygon)
 register(superellipseStack)
 register(hexLattice)
 register(truchetTiles)
+register(voronoiShards)
+register(interferenceRipple)
+register(flowStrands)

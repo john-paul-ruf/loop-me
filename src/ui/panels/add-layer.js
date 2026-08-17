@@ -87,6 +87,9 @@ const VIZ_CLASS = {
   47: 'v-squircle',
   48: 'v-hex',
   49: 'v-truchet',
+  50: 'v-voronoi',
+  51: 'v-interf',
+  52: 'v-flow',
 }
 
 /** Role dot class per role name. */
