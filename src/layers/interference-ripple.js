@@ -28,6 +28,17 @@
  * stroked visibly; even at `sources = 2`, `rings = 6` there are 10+
  * strokes in one composited frame.
  *
+ * **per-effect-glow (S04):** wide additive re-stroke archetype. When
+ * `glowStrength > 0`, `draw` re-runs the per-source ring loop once BEFORE
+ * the crisp pass under `globalCompositeOperation = 'lighter'` at
+ * `lineWidth × K_GLOW` — a soft halo under each ring family so the
+ * interference read as a glowing moiré. The same `expand` / MIN_R filter
+ * applies to the halo, so loop closure is preserved (the family that shifts
+ * one slot at `expand = 1` includes the same halo rings as at
+ * `expand = 0`). No `shadowBlur` (FR-6); `gs === 0` is a hard no-op →
+ * pre-glow seeds decode byte-identical (§9.5). K = 2.5 — the sparse ring
+ * families can afford a wider halo without visual overlap.
+ *
  * Imports `model/params.js` only (§4 rule 2).
  */
 
@@ -39,7 +50,10 @@ export const meta = {
   name: 'Interference Ripple',
   role: 'secondary',
   blurb: 'Overlapping ring families interfering into moiré.',
-  worstCase: { pathOps: 50, drawCalls: 3 },
+  // Worst case doubles under the glow pass: 3 halo strokes + 3 crisp strokes
+  // at sources.max = 3, each halo path is the same shape as its crisp
+  // counterpart.
+  worstCase: { pathOps: 100, drawCalls: 6 },
   fullCanvasOpaque: false,
 }
 
@@ -51,12 +65,22 @@ export const params = [
   A('expand', 0, 1, { wrap: true, default: { min: 0, max: 1 } }),
   // weight.min > 0 (1 px): every ring registers.
   A('weight', 1, 6, { default: { min: 1.5, max: 4 } }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0`
+  // is a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const W = 1080
 const CX = 540
 const CY = 960
 const TWO_PI = Math.PI * 2
+/**
+ * Halo width multiplier. Sparse — at most 3 ring families of ~13 rings each
+ * at spacing.min = 40 px. 2.5 gives a generous halo without visual overlap
+ * between neighbouring rings within a family.
+ */
+const K_GLOW = 2.5
 /**
  * Fixed draw budget for the source-position table. Always this many rng
  * values so the seed stream position downstream stays stable across
@@ -127,9 +151,38 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const expand = /** @type {number} */ (resolved.expand)
   const weight = /** @type {number} */ (resolved.weight)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { sources, rings, spacing, srcX, srcY } = prepared
 
   ctx.strokeStyle = prepared.color
+
+  // Glow pass — one halo stroke per source, drawn FIRST so the crisp
+  // moiré sits on top (halo under mark). Same `expand` and MIN_R filter
+  // as the crisp pass so loop closure is preserved. `gs === 0` is a
+  // hard no-op: skip entirely for byte-identical pre-glow output.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.lineWidth = weight * K_GLOW
+    for (let s = 0; s < sources; s++) {
+      const cx = srcX[s]
+      const cy = srcY[s]
+      ctx.beginPath()
+      for (let i = 0; i < rings; i++) {
+        const t = (i + expand) % rings
+        const r = t * spacing
+        if (r < MIN_R) continue
+        ctx.moveTo(cx + r, cy)
+        ctx.arc(cx, cy, r, 0, TWO_PI)
+      }
+      ctx.stroke()
+    }
+    ctx.restore()
+    // `strokeStyle` survives `restore()` — set before save.
+  }
+
   ctx.lineWidth = weight
 
   // One accumulated arc path per source, one stroke per source.
