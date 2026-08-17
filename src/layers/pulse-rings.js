@@ -16,6 +16,15 @@
  * frame path; `setLineDash` copies it). Consumes zero PRNG draws — phase
  * is deterministic from `sweep` and indices.
  *
+ * **per-effect-glow reference — the wide additive re-stroke archetype.**
+ * When `glowStrength > 0`, `draw` re-runs the ring loop once BEFORE the crisp
+ * pass under `globalCompositeOperation = 'lighter'` at `lineWidth × K_GLOW` —
+ * a soft halo laid down first, crisp rings drawn on top. Colour-on-colour, no
+ * gradient sprite needed; `src/util/glow.js`'s `glowGradient`/`glowSprite`
+ * exist for the fill/dot archetype (see `orbit-dots.js`). This is the
+ * technique every S02 stroke layer copies verbatim; see `src/util/glow.js`
+ * for the canonical draw-time idiom and the `glowStrength` param convention.
+ *
  * Imports `model/params.js` only (§4 rule 2).
  */
 
@@ -27,7 +36,8 @@ export const meta = {
   name: 'Pulse Rings',
   role: 'primary',
   blurb: 'Concentric rings breathing in a travelling wave of weight.',
-  worstCase: { pathOps: 24, drawCalls: 24 },
+  // Worst case doubles under the glow pass: 24 crisp strokes + 24 halo strokes.
+  worstCase: { pathOps: 48, drawCalls: 48 },
   fullCanvasOpaque: false,
 }
 
@@ -40,12 +50,23 @@ export const params = [
   S.int('dashCount', 0, 48),
   A('sweep', 0, 360, { unit: '°', wrap: true }),
   S.int('waveFreq', 1, 6, { default: 2 }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
 const CY = 960
 const DEG = Math.PI / 180
 const TWO_PI = Math.PI * 2
+/**
+ * Halo width multiplier for the glow re-stroke. Tuned visually: below 2 the
+ * halo is indistinguishable from the crisp ring; above 3 it bleeds neighbours
+ * together and the "travelling pulse" reads as an ambient wash. 2.5 keeps the
+ * halo clearly wider than the ring at every `baseWeight`.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} PulseRingsPrepared
@@ -86,9 +107,46 @@ export function draw(ctx, resolved, prepared, palette) {
   const baseW = /** @type {number} */ (resolved.baseWeight)
   const off = /** @type {number} */ (resolved.radiusOffset)
   const sweepRad = /** @type {number} */ (resolved.sweep) * DEG
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { count, dashCount, freq, dash } = prepared
 
   ctx.strokeStyle = prepared.color
+
+  // Glow pass — drawn FIRST so the crisp rings sit on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip the pass entirely for byte-identical
+  // pre-glow output. See `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    if (dashCount === 0) {
+      for (let i = 0; i < count; i++) {
+        const r = off + spacing * (i + 1)
+        const phase = freq * TWO_PI * (i / count) + sweepRad
+        ctx.lineWidth = Math.max(0.5, baseW * (0.5 + 0.5 * Math.cos(phase))) * K_GLOW
+        ctx.beginPath()
+        ctx.moveTo(CX + r, CY)
+        ctx.arc(CX, CY, r, 0, TWO_PI)
+        ctx.stroke()
+      }
+    } else {
+      for (let i = 0; i < count; i++) {
+        const r = off + spacing * (i + 1)
+        const phase = freq * TWO_PI * (i / count) + sweepRad
+        ctx.lineWidth = Math.max(0.5, baseW * (0.5 + 0.5 * Math.cos(phase))) * K_GLOW
+        const seg = (Math.PI * r) / dashCount
+        dash[0] = seg
+        dash[1] = seg
+        ctx.setLineDash(dash)
+        ctx.beginPath()
+        ctx.arc(CX, CY, r, 0, TWO_PI)
+        ctx.stroke()
+      }
+    }
+    ctx.restore()
+    // `strokeStyle` survives `restore()` since it was set before `save()`.
+  }
 
   if (dashCount === 0) {
     for (let i = 0; i < count; i++) {
