@@ -4,8 +4,8 @@
  *
  * A composition is the whole piece: a duration, a scheme, and 1–5 layers.
  * This module owns the **layer envelope** — the fields common to every layer
- * type (`type`, `blend`, `rngSeed`, `color`, `opacity`) — and the lifecycle
- * functions: `create`, `clone`, `defaults`, `validate`, `clamp`.
+ * type (`type`, `blend`, `rngSeed`, `color`, `opacity`, `visible`) — and the
+ * lifecycle functions: `create`, `clone`, `defaults`, `validate`, `clamp`.
  *
  * `clamp` is the repair pass for decoded seeds (FR-12, FR-18). It is the only
  * place that treats parameter values as untrusted input: everything that
@@ -71,9 +71,10 @@ export function totalFrames(durationId) {
 // ---------------------------------------------------------------------------
 // The layer envelope
 //
-// `type`, `blend`, `rngSeed`, `color`, and `opacity` are common to every
-// layer type (architecture §5.4). They occupy fixed leading positions in the
-// seed (§9.2) and are declared here, not in any layer's `params`.
+// `type`, `blend`, `rngSeed`, `color`, `opacity`, and `visible` are common to
+// every layer type (architecture §5.4). They occupy fixed leading positions in
+// the seed (§9.2) and are declared here, not in any layer's `params`.
+// `visible` rides as the optional top-level hidden bitmask (§9.2 extension).
 // ---------------------------------------------------------------------------
 
 /**
@@ -131,6 +132,7 @@ export function createLayer(typeId) {
     rngSeed: 0,
     color: 'c0',
     opacity: defaultOpacity(),
+    visible: true,
     params,
     errored: false,
   }
@@ -244,6 +246,7 @@ export function validate(c) {
     if (!Number.isInteger(layer.blend) || layer.blend < 0 || layer.blend >= BLEND_COUNT) return false
     if (!Number.isInteger(layer.rngSeed) || layer.rngSeed < 0 || layer.rngSeed > 0xFFFFFFFF) return false
     if (typeof layer.color !== 'string' || layer.color.length === 0) return false
+    if (layer.visible !== undefined && typeof layer.visible !== 'boolean') return false
 
     // Opacity envelope
     const op = layer.opacity
@@ -301,8 +304,10 @@ export function validate(c) {
  * Mutates `layer.params` in place. Missing trailing params get fresh defaults
  * (architecture §9.5). Out-of-range values clamp. Unknown blend clamps to
  * normal. `rngSeed` is coerced to a uint32. `color` falls back to `'c0'` if not
- * a string. `opacity` is repaired. `errored` is reset to `false` — a layer
- * that was fenced by the painter should get a fresh chance after a decode.
+ * a string. `opacity` is repaired. `visible` is materialized to a real boolean
+ * — absent (pre-visibility seeds) becomes `true`. `errored` is reset to
+ * `false` — a layer that was fenced by the painter should get a fresh chance
+ * after a decode.
  *
  * If `layer.type` is unknown, returns `false` — the caller should skip and
  * warn (FR-18: "Unknown layer type ID in a seed skips that layer and warns").
@@ -324,6 +329,10 @@ export function clampLayer(layer) {
   if (typeof layer.color !== 'string' || layer.color.length === 0) {
     layer.color = 'c0'
   }
+
+  // Envelope: visible — absent means visible (pre-visibility seeds).
+  // Materialized to a real boolean so encode and the UI read one shape.
+  layer.visible = layer.visible !== false
 
   // Envelope: opacity
   layer.opacity = clampAnimValue(layer.opacity, OPACITY_DECL)

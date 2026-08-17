@@ -112,6 +112,9 @@
  * @property {string} color     Colour ref: `'c3'` | `'n1'` | `'b0'` | `'FF2E88'` (architecture §9.2).
  * @property {AnimValue} opacity  Envelope opacity, A 0.05–1.0 (FR-5).
  * @property {Record<string, ParamValue>} params
+ * @property {boolean} [visible]  Envelope visibility. Absent ≡ visible — every
+ *   pre-visibility seed and hand-built layer renders. Serialized as the
+ *   optional top-level hidden bitmask, seed element 4 (§9.2 extension).
  * @property {boolean} [errored]  Set by the painter's per-layer fence; skips the layer (FR-18).
  */
 

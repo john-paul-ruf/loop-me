@@ -246,6 +246,42 @@ suite('composition — clamp repairs decoded seeds (FR-12, FR-18)', () => {
     assertEq(layer.errored, false, 'a decoded layer gets a fresh chance')
   })
 
+  test('createLayer defaults visible to true', () => {
+    const layer = makeTestLayer()
+    assertEq(layer.visible, true, 'a fresh layer is visible')
+  })
+
+  test('validate accepts boolean visible and absent visible; rejects non-boolean', () => {
+    const c = create(900)
+    // absent: strip the field, validate should still pass
+    delete c.layers[0].visible
+    assert(validate(c), 'absent visible is fine')
+    c.layers[0].visible = true
+    assert(validate(c), 'true is fine')
+    c.layers[0].visible = false
+    assert(validate(c), 'false is fine')
+    // non-boolean junk
+    ;/** @type {any} */ (c.layers[0]).visible = 1
+    assert(!validate(c), 'numeric 1 is not a boolean')
+    ;/** @type {any} */ (c.layers[0]).visible = 'no'
+    assert(!validate(c), 'string is not a boolean')
+  })
+
+  test('clampLayer materializes visible: absent → true, false survives, junk → true', () => {
+    const layer = makeTestLayer()
+    delete layer.visible
+    clampLayer(layer)
+    assertEq(layer.visible, true, 'absent becomes true')
+
+    layer.visible = false
+    clampLayer(layer)
+    assertEq(layer.visible, false, 'false survives')
+
+    ;/** @type {any} */ (layer).visible = 'nope'
+    clampLayer(layer)
+    assertEq(layer.visible, true, 'a non-false value becomes true')
+  })
+
   test('unknown layer type returns false (caller skips and warns)', () => {
     const layer = { type: 4242, blend: 0, rngSeed: 0, color: 'c0', opacity: { min: 0.05, max: 1, times: 1, algorithm: 0 }, params: {}, errored: false }
     const usable = clampLayer(layer)

@@ -226,6 +226,10 @@ function genLayer(rng, typeId, decls) {
     rngSeed: uint32(rng),
     color: pick(rng, COLOR_REFS),
     opacity: genAnim(rng, 0.05, 1.0),
+    // Envelope `visible` is materialized by clamp on decode (same precedent
+    // as `errored: false`) — deep-eq round-trips require it in generated
+    // fixtures too. Ckpt 2 will exercise `visible: false` under the mask.
+    visible: true,
     params,
     errored: false,
   }
@@ -282,6 +286,9 @@ function fixedComposition() {
       rngSeed: 4123456789,
       color: 'c2',
       opacity: { min: 0.05, max: 1, times: 3, algorithm: 17 },
+      // Envelope `visible` is materialized by clamp on decode (same precedent
+      // as `errored: false`) — deep-eq round-trips require it in the fixture.
+      visible: true,
       params: {
         radius: { min: 12.5, max: 398.25, times: 5, algorithm: 12 },
         count: 17,
