@@ -376,6 +376,75 @@ suite('layers — glitch determinism (FR-4: same seed, same frame → same pixel
   }
 })
 
+/**
+ * The omni-wave primary W3 block — closed-curve centerpieces (43–47) all
+ * paint their own geometry over a bare background, so the same-seed
+ * determinism check is a *solo* paint, not composed against a base. This
+ * mirrors the glitch determinism suite above (same stride sample), but
+ * pins the exact solo pixels rather than the composed diff. New primary
+ * types added by future waves join this suite by appending their ID here
+ * — the frontier filter is redundant with the pin table below and would
+ * silently drop coverage on regression.
+ */
+const PRIMARY_W3_IDS = [43, 44, 45, 46, 47]
+
+suite('layers — primary W3 determinism (FR-4: same seed, same frame → same pixels)', () => {
+  for (const id of PRIMARY_W3_IDS) {
+    const mod = /** @type {LayerModule} */ (list().find((m) => m.meta.id === id))
+    test(`type ${id} ${mod.meta.name}: solo is bit-for-bit stable across paints`, () => {
+      // Every W3 type consumes a FIXED number of rng draws in prepare
+      // (lissajous 2, rose 1, epicycle 10, star 1, superellipse 0), and
+      // draws no per-frame entropy — so two paints against the same
+      // rngSeed and frame must land the exact same pixels.
+      const params = pinnedParams(mod, 'mid')
+      const a = new Uint8ClampedArray(paintOne(makeLayer(id, params)))
+      const b = new Uint8ClampedArray(paintOne(makeLayer(id, params)))
+      assertEq(a.length, b.length, 'read-back length changed between paints')
+      for (let i = 0; i < a.length; i += 4 * 61) {
+        assertEq(a[i], b[i], `red channel drift at byte ${i}`)
+      }
+    })
+  }
+})
+
+/**
+ * Per-type pin for the W3 primaries — the row shape mirrors the glitch
+ * min-bound visibility floors above. Each primary declares at least one
+ * A param whose full sweep must render a visible figure; every A `.min`
+ * must be strictly positive (an animated bound at zero would collapse
+ * the curve to a point on the min end, silently passing the solo sweep
+ * only because the sweep pins A(min, min) and this pin catches the
+ * degenerate range). The listed param names track the driving amplitude
+ * — the one whose zero would produce a null figure.
+ * @type {Record<number, string>}
+ */
+const PRIMARY_W3_DRIVER = {
+  43: 'size',      // fraction of BASE — 0 collapses the curve to a point
+  44: 'bloom',     // fraction of MAX_R — 0 collapses to a point
+  45: 'scale',     // fraction of BASE — 0 collapses radii/curve to a point
+  46: 'pulse',     // vertex-radius modulator — 0 collapses to a point
+  47: 'scale',     // fraction of BASE — 0 collapses every ring to a point
+}
+
+suite('layers — primary W3 min-bound visibility floors are guarded (FR-6 AC regression)', () => {
+  for (const id of PRIMARY_W3_IDS) {
+    const mod = /** @type {LayerModule} */ (list().find((m) => m.meta.id === id))
+    const driverName = PRIMARY_W3_DRIVER[id]
+    test(`type ${id} ${mod.meta.name}: driver "${driverName}" has a strictly positive min`, () => {
+      assert(driverName !== undefined, `no driver param mapped for primary W3 type ${id}`)
+      const decl = mod.params.find((p) => p.name === driverName)
+      assert(decl !== undefined, `type ${id}: no "${driverName}" param`)
+      assertEq(decl.kind, 'A', `type ${id}: "${driverName}" must be animatable`)
+      // Strictly > 0 — the FR-6 "renders nothing at every bound" AC needs
+      // headroom, not merely non-negativity.
+      assert(
+        decl.min > 0,
+        `type ${id}: "${driverName}".min ${decl.min} must be > 0 to guarantee a visible figure`,
+      )
+    })
+  }
+})
+
 suite('layers — Flag 4 in the real catalog: layer `opacity` composes with the envelope', () => {
   test('Scan Lines: band pixel = envelope × band opacity, not either alone', () => {
     const params = pinnedParams(/** @type {LayerModule} */ (list().find((m) => m.meta.id === 14)), 'mid')
