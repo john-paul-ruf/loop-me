@@ -297,6 +297,9 @@ const DRIVER = {
   37: 'reach',   // fraction — reach=0 mirrors a zero-width strip
   38: 'shear',   // px — alternating shift collapses to no-op at 0
   39: 'fade',    // alpha per echo — at 0 every echo composites invisibly
+  40: 'reach',   // fraction — reach=0 makes dest height equal src, no smear
+  41: 'radius',  // px — radius=0 blits onto itself, difference→black, screen→~original
+  42: 'strength',// alpha per pass — at 0 every pass composites invisibly
 }
 
 suite('layers — glitch min-bound visibility floors are guarded (FR-6 AC regression)', () => {

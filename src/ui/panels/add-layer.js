@@ -75,6 +75,9 @@ const VIZ_CLASS = {
   37: 'v-fold',
   38: 'v-comb',
   39: 'v-echo',
+  40: 'v-smear',
+  41: 'v-ghost',
+  42: 'v-crush',
 }
 
 /** Role dot class per role name. */

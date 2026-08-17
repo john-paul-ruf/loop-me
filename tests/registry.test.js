@@ -219,8 +219,8 @@ function catalog() {
   return list().filter((m) => m.meta.id <= 42)
 }
 
-suite('registry — the 39-type catalog pin (architecture §8.2, FR-6)', () => {
-  test('exactly types 1–39, in ID order, names pinned', () => {
+suite('registry — the 42-type catalog pin (architecture §8.2, FR-6)', () => {
+  test('exactly types 1–42, in ID order, names pinned', () => {
     // Changing a line here silently orphans every seed that stores the ID.
     const NAMES = [
       'Ray Rings', 'Nth Rings', 'Layered Poly', 'Encircled Spiral',
@@ -235,10 +235,11 @@ suite('registry — the 39-type catalog pin (architecture §8.2, FR-6)', () => {
       'Stripe Sweep',
       'Slice Shift', 'RGB Split', 'Block Static', 'Sync Roll',
       'Mirror Fold', 'Interlace Comb', 'Zoom Echo',
+      'Smear Streak', 'Ghost Double', 'Contrast Crush',
     ]
     const cat = catalog()
-    assertEq(cat.length, 39, 'the catalog holds exactly 39 types')
-    for (let i = 0; i < 39; i++) {
+    assertEq(cat.length, 42, 'the catalog holds exactly 42 types')
+    for (let i = 0; i < 42; i++) {
       assertEq(cat[i].meta.id, i + 1, `position ${i} carries ID ${i + 1}`)
       assertEq(cat[i].meta.name, NAMES[i], `ID ${i + 1} name`)
     }
@@ -274,6 +275,9 @@ suite('registry — the 39-type catalog pin (architecture §8.2, FR-6)', () => {
       37: [0, 1],
       38: [0, 32],
       39: [0, 5],
+      40: [0, 24],
+      41: [0, 1],
+      42: [0, 2],
     }
     for (const m of catalog()) {
       const row = TABLE[m.meta.id]
@@ -299,7 +303,7 @@ suite('registry — the 39-type catalog pin (architecture §8.2, FR-6)', () => {
     // which is exactly why B1 deferred this test until the catalog existed.
     assertThrows(() => register(one), 'duplicate ID must be rejected')
     assertEq(get(1), one, 'the original module is still registered')
-    assertEq(catalog().length, 39, 'catalog unchanged')
+    assertEq(catalog().length, 42, 'catalog unchanged')
   })
 
   test('the reserved statics keys are rejected as param names (D4 scratch injection)', () => {
@@ -331,6 +335,9 @@ suite('registry — omni-wave pin (IDs 37–42)', () => {
     { id: 37, name: 'Mirror Fold',    role: 'glitch', pathOps: 0, drawCalls: 1 },
     { id: 38, name: 'Interlace Comb', role: 'glitch', pathOps: 0, drawCalls: 32 },
     { id: 39, name: 'Zoom Echo',      role: 'glitch', pathOps: 0, drawCalls: 5 },
+    { id: 40, name: 'Smear Streak',   role: 'glitch', pathOps: 0, drawCalls: 24 },
+    { id: 41, name: 'Ghost Double',   role: 'glitch', pathOps: 0, drawCalls: 1 },
+    { id: 42, name: 'Contrast Crush', role: 'glitch', pathOps: 0, drawCalls: 2 },
   ]
   for (const row of ROWS) {
     test(`type ${row.id} ${row.name} — id, name, role, worstCase`, () => {

@@ -57,6 +57,9 @@ import * as syncRoll from '../layers/sync-roll.js'
 import * as mirrorFold from '../layers/mirror-fold.js'
 import * as interlaceComb from '../layers/interlace-comb.js'
 import * as zoomEcho from '../layers/zoom-echo.js'
+import * as smearStreak from '../layers/smear-streak.js'
+import * as ghostDouble from '../layers/ghost-double.js'
+import * as contrastCrush from '../layers/contrast-crush.js'
 
 /**
  * @typedef {import('./params.js').LayerMeta} LayerMeta
@@ -292,3 +295,6 @@ register(syncRoll)
 register(mirrorFold)
 register(interlaceComb)
 register(zoomEcho)
+register(smearStreak)
+register(ghostDouble)
+register(contrastCrush)
