@@ -63,6 +63,7 @@ export function paint(frame, totalFrames) {
   for (let i = 0; i < layers.length; i++) {
     const layer = layers[i]
     if (layer.errored === true) continue
+    if (layer.visible === false) continue // hidden (FR-5 ext) — resolve/draw skipped; export inherits via paint()
     const mod = get(layer.type)
     if (mod === null) continue
 

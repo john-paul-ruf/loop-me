@@ -328,6 +328,24 @@ export function setColorRef(index, colorRef) {
 }
 
 /**
+ * Set a layer's visibility (envelope, seed-persisted). Hiding skips the layer
+ * in the painter without touching its params — the non-destructive alternative
+ * to deleteLayer. Does NOT mark dirty: visibility is not cached geometry
+ * (§6.3), so the prepare cache stays warm for re-show.
+ *
+ * @param {number} index
+ * @param {boolean} visible
+ */
+export function setLayerVisible(index, visible) {
+  if (state.composition === null) return
+  if (index < 0 || index >= state.composition.layers.length) return
+  snapshot()
+  state.composition.layers[index].visible = visible === true
+  publish(TOPICS.LAYER, index)
+  publish(TOPICS.SEED)
+}
+
+/**
  * Change a layer's type. The new layer gets default params for that type;
  * the envelope (blend, rngSeed, color, opacity) is preserved from the old
  * layer so the user does not lose their blend choice.
@@ -348,6 +366,7 @@ export function setLayerType(index, typeId) {
   newLayer.rngSeed = old.rngSeed
   newLayer.color = old.color
   newLayer.opacity = old.opacity
+  newLayer.visible = old.visible !== false
   state.composition.layers[index] = newLayer
   markDirty(index)
   state.palette = m().buildPalette(state.composition.scheme, state.composition.layers)

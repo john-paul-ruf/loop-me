@@ -342,6 +342,42 @@ suite('render/painter', () => {
     assertEq(throwingDrawCalls, 1, 'an errored layer is skipped on later frames')
   })
 
+  test('a hidden layer is skipped in the paint loop (layer.visible === false)', () => {
+    const cx = freshTarget()
+    let hiddenDrew = 0
+    let visibleDrew = 0
+    try {
+      register({
+        meta: { id: 993, name: 'Hidden Probe', role: 'overlay', blurb: 'test', worstCase: { pathOps: 1, drawCalls: 1 }, fullCanvasOpaque: false },
+        params: [S.int('n', 0, 10)],
+        prepare: () => ({}),
+        draw: () => { hiddenDrew++ },
+      })
+    } catch { /* already registered */ }
+    try {
+      register({
+        meta: { id: 994, name: 'Visible Probe', role: 'overlay', blurb: 'test', worstCase: { pathOps: 1, drawCalls: 1 }, fullCanvasOpaque: false },
+        params: [S.int('n', 0, 10)],
+        prepare: () => ({}),
+        draw: () => { visibleDrew++ },
+      })
+    } catch { /* already registered */ }
+    /** @type {Layer} */
+    const hidden = {
+      type: 993, blend: 0, rngSeed: 1, color: 'c0',
+      opacity: pin(1), visible: false, params: { n: 1 }, errored: false,
+    }
+    /** @type {Layer} */
+    const visible = {
+      type: 994, blend: 0, rngSeed: 1, color: 'c0',
+      opacity: pin(1), visible: true, params: { n: 1 }, errored: false,
+    }
+    load([hidden, visible])
+    paint(0, TOTAL)
+    assertEq(hiddenDrew, 0, 'hidden layer\'s draw was NOT called')
+    assertEq(visibleDrew, 1, 'visible layer\'s draw ran once')
+  })
+
   test('a default createLayer(1) composition renders non-blank', () => {
     const cx = freshTarget()
     const layer = createLayer(1)
