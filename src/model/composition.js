@@ -27,9 +27,9 @@ import {
   isAnimatable,
   defaultOf,
 } from './params.js'
-import { coerceBlend } from './blend.js'
+import { coerceBlend, BLEND_COUNT } from './blend.js'
 import { get as getLayer, has as hasLayer } from './registry.js'
-import { isValidScheme } from './schemes.js'
+import { isValidScheme, BUILTINS } from './schemes.js'
 
 /**
  * @typedef {import('./params.js').Composition} Composition
@@ -226,9 +226,11 @@ export function validate(c) {
   // Duration
   if (!Number.isInteger(c.durationId) || c.durationId < 0 || c.durationId >= DURATIONS.length) return false
 
-  // Scheme
+  // Scheme — the numeric branch is a built-in index; bound tracks BUILTINS.length
+  // (omni-wave S05 grew it from 4 → 8). The Scheme-object branch is for custom
+  // palettes and is validated structurally by isValidScheme.
   if (typeof c.scheme === 'number') {
-    if (c.scheme < 0 || c.scheme >= 4) return false // 4 built-ins
+    if (c.scheme < 0 || c.scheme >= BUILTINS.length) return false
   } else if (!isValidScheme(c.scheme)) {
     return false
   }
@@ -239,7 +241,7 @@ export function validate(c) {
   for (const layer of c.layers) {
     if (typeof layer !== 'object' || layer === null) return false
     if (!hasLayer(layer.type)) return false
-    if (!Number.isInteger(layer.blend) || layer.blend < 0 || layer.blend > 6) return false
+    if (!Number.isInteger(layer.blend) || layer.blend < 0 || layer.blend >= BLEND_COUNT) return false
     if (!Number.isInteger(layer.rngSeed) || layer.rngSeed < 0 || layer.rngSeed > 0xFFFFFFFF) return false
     if (typeof layer.color !== 'string' || layer.color.length === 0) return false
 

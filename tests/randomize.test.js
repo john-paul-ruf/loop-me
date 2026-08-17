@@ -33,7 +33,11 @@ import { generate, generateLayer } from '../src/model/randomize.js'
 import { validate } from '../src/model/composition.js'
 import { list, register } from '../src/model/registry.js'
 import { resolveRef, BUILTINS } from '../src/model/schemes.js'
-import { BLEND_DIFFERENCE, BLEND_ADDITIVE, BLEND_SCREEN, BLEND_MULTIPLY, BLEND_OVERLAY } from '../src/model/blend.js'
+import {
+  BLEND_DIFFERENCE, BLEND_MULTIPLY, BLEND_OVERLAY,
+  BLEND_SOFT_LIGHT, BLEND_HUE, BLEND_LUMINOSITY,
+  FLASHY_BLENDS,
+} from '../src/model/blend.js'
 import { A } from '../src/model/params.js'
 
 /** @typedef {import('../src/model/params.js').Composition} Composition */
@@ -340,17 +344,17 @@ suite('randomize — taste rule 4: colour ≠ background (§8.5)', () => {
 // ---------------------------------------------------------------------------
 
 suite('randomize — taste rule 5: flash safety (FR-17 ≤ 3 Hz)', () => {
-  test('additive/screen overlay layers have times ≤ 2 on every A param', () => {
+  test('flashy-blend overlay layers have times ≤ 2 on every A param (add/screen/color-dodge/lighten)', () => {
     for (let i = 0; i < 500; i++) {
       const c = generate()
       for (const layer of c.layers) {
         const mod = list().find((m) => m.meta.id === layer.type)
         if (!mod || mod.meta.role !== 'overlay') continue
-        if (layer.blend !== BLEND_ADDITIVE && layer.blend !== BLEND_SCREEN) continue
+        if (!FLASHY_BLENDS.includes(layer.blend)) continue
 
         // Envelope opacity
         assert(layer.opacity.times <= 2,
-          `generate() #${i}: additive/screen overlay opacity times ${layer.opacity.times} > 2`)
+          `generate() #${i}: flashy overlay (blend ${layer.blend}) opacity times ${layer.opacity.times} > 2`)
 
         // Declared A params
         for (const decl of mod.params) {
@@ -358,31 +362,31 @@ suite('randomize — taste rule 5: flash safety (FR-17 ≤ 3 Hz)', () => {
           const av = /** @type {AnimValue} */ (layer.params[decl.name])
           if (typeof av === 'object' && av !== null) {
             assert(av.times <= 2,
-              `generate() #${i}: additive/screen overlay param "${decl.name}" times ${av.times} > 2`)
+              `generate() #${i}: flashy overlay (blend ${layer.blend}) param "${decl.name}" times ${av.times} > 2`)
           }
         }
       }
     }
   })
 
-  test('additive/screen glitch layers have times ≤ 2 on every A param', () => {
+  test('flashy-blend glitch layers have times ≤ 2 on every A param', () => {
     // Rule 5 extension: glitch is a self-blit of the composited frame, so its
-    // strobing is still strobing — same cap as additive/screen overlays.
-    // Expected hit rate per run ≈ P(glitch) · P(blend ∈ add/screen) ≈
-    // 0.26 · 0.40 ≈ 0.10, so 500 runs land ~50 samples: the sawAny sanity
-    // pin passes overwhelmingly if the cap is actually running.
+    // strobing is still strobing — same cap as flashy overlays. Expected hit
+    // rate per run ≈ P(glitch) · P(blend ∈ FLASHY) ≈ 0.26 · 4/11 ≈ 0.09, so
+    // 500 runs land ~45 samples: the sawAny sanity pin passes overwhelmingly
+    // if the cap is actually running.
     let sawAny = false
     for (let i = 0; i < 500; i++) {
       const c = generate()
       for (const layer of c.layers) {
         const mod = list().find((m) => m.meta.id === layer.type)
         if (!mod || mod.meta.role !== 'glitch') continue
-        if (layer.blend !== BLEND_ADDITIVE && layer.blend !== BLEND_SCREEN) continue
+        if (!FLASHY_BLENDS.includes(layer.blend)) continue
         sawAny = true
 
         // Envelope opacity
         assert(layer.opacity.times <= 2,
-          `generate() #${i}: additive/screen glitch opacity times ${layer.opacity.times} > 2`)
+          `generate() #${i}: flashy glitch (blend ${layer.blend}) opacity times ${layer.opacity.times} > 2`)
 
         // Declared A params
         for (const decl of mod.params) {
@@ -390,23 +394,23 @@ suite('randomize — taste rule 5: flash safety (FR-17 ≤ 3 Hz)', () => {
           const av = /** @type {AnimValue} */ (layer.params[decl.name])
           if (typeof av === 'object' && av !== null) {
             assert(av.times <= 2,
-              `generate() #${i}: additive/screen glitch param "${decl.name}" times ${av.times} > 2`)
+              `generate() #${i}: flashy glitch (blend ${layer.blend}) param "${decl.name}" times ${av.times} > 2`)
           }
         }
       }
     }
     assert(sawAny,
-      'no additive/screen glitch layer appeared in 500 randomize runs — cap coverage unproven')
+      'no flashy-blend glitch layer appeared in 500 randomize runs — cap coverage unproven')
   })
 
-  test('non-additive overlay layers can have times > 2 (rule only applies to additive/screen)', () => {
+  test('non-flashy overlay layers can have times > 2 (rule only applies to FLASHY_BLENDS)', () => {
     let found = false
     for (let i = 0; i < 500; i++) {
       const c = generate()
       for (const layer of c.layers) {
         const mod = list().find((m) => m.meta.id === layer.type)
         if (!mod || mod.meta.role !== 'overlay') continue
-        if (layer.blend === BLEND_ADDITIVE || layer.blend === BLEND_SCREEN) continue
+        if (FLASHY_BLENDS.includes(layer.blend)) continue
         if (layer.opacity.times > 2) {
           found = true
           break
@@ -415,9 +419,39 @@ suite('randomize — taste rule 5: flash safety (FR-17 ≤ 3 Hz)', () => {
       if (found) break
     }
     // Not a hard assertion — but with ~0.5 probability of times > 2 on each
-    // overlay envelope and ~5/7 of overlays being non-additive/screen, this
-    // should hit within 500 iterations.
-    assert(found, 'a non-additive overlay layer should get times > 2 somewhere')
+    // overlay envelope and 7/11 of overlays being non-flashy, this should hit
+    // within 500 iterations.
+    assert(found, 'a non-flashy overlay layer should get times > 2 somewhere')
+  })
+
+  test('soft-light / hue / luminosity overlays do NOT trip the cap (regression)', () => {
+    // The three "not brightening" modes from the omni-wave S05 blend set —
+    // they read colour, not intensity, so a full-loop opacity cycle is not
+    // a strobe. Rule 5 must let them keep times > 2. Sanity: at least one
+    // of the three should appear over 500 runs with times > 2 on any A
+    // param (envelope opacity or declared).
+    const NOT_FLASHY = [BLEND_SOFT_LIGHT, BLEND_HUE, BLEND_LUMINOSITY]
+    let found = false
+    for (let i = 0; i < 500 && !found; i++) {
+      const c = generate()
+      for (const layer of c.layers) {
+        const mod = list().find((m) => m.meta.id === layer.type)
+        if (!mod || mod.meta.role !== 'overlay') continue
+        if (!NOT_FLASHY.includes(layer.blend)) continue
+        if (layer.opacity.times > 2) { found = true; break }
+        for (const decl of mod.params) {
+          if (decl.kind !== 'A') continue
+          const av = /** @type {AnimValue} */ (layer.params[decl.name])
+          if (typeof av === 'object' && av !== null && av.times > 2) {
+            found = true
+            break
+          }
+        }
+        if (found) break
+      }
+    }
+    assert(found,
+      'no soft-light/hue/luminosity overlay hit times > 2 in 500 runs — cap may be over-broad')
   })
 })
 

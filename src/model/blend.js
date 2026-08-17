@@ -21,6 +21,17 @@ export const BLEND_OVERLAY = 4
 export const BLEND_DIFFERENCE = 5
 export const BLEND_HARD_LIGHT = 6
 
+// IDs 7–13, appended by omni-wave (SESSION-05). Ops / names / constants stay
+// in lockstep. Append-only forever (see the file-header note): a shared seed
+// carrying a retired ID still decodes and renders unchanged.
+export const BLEND_EXCLUSION = 7    // 'exclusion'   — 'Exclusion'
+export const BLEND_COLOR_DODGE = 8  // 'color-dodge' — 'Color dodge'
+export const BLEND_SOFT_LIGHT = 9   // 'soft-light'  — 'Soft light'
+export const BLEND_LIGHTEN = 10     // 'lighten'     — 'Lighten'
+export const BLEND_DARKEN = 11      // 'darken'      — 'Darken'
+export const BLEND_HUE = 12         // 'hue'         — 'Hue'
+export const BLEND_LUMINOSITY = 13  // 'luminosity'  — 'Luminosity'
+
 /**
  * ID → canvas composite operation. Indexed directly by the painter
  * (`ctx.globalCompositeOperation = BLEND_OPS[layer.blend]`, architecture §6.4),
@@ -38,11 +49,19 @@ export const BLEND_OPS = Object.freeze(
     'overlay',
     'difference',
     'hard-light',
+    'exclusion',
+    'color-dodge',
+    'soft-light',
+    'lighten',
+    'darken',
+    'hue',
+    'luminosity',
   ]),
 )
 
 /**
  * ID → user-facing name, exactly as the mocks label the chips.
+ * Sentence case per Designer convention (`'Color dodge'`, not `'Color Dodge'`).
  * @type {readonly string[]}
  */
 export const BLEND_NAMES = Object.freeze([
@@ -53,6 +72,13 @@ export const BLEND_NAMES = Object.freeze([
   'Overlay',
   'Difference',
   'Hard light',
+  'Exclusion',
+  'Color dodge',
+  'Soft light',
+  'Lighten',
+  'Darken',
+  'Hue',
+  'Luminosity',
 ])
 
 /** How many blend modes exist today. Grows; never shrinks. */
@@ -60,20 +86,49 @@ export const BLEND_COUNT = BLEND_OPS.length
 
 /**
  * The blend IDs a user may **pick** and the randomizer may **produce**, in
- * display order. This is deliberately a subset of the full table: Multiply (3)
- * and Overlay (4) are *retired* — muddy against this palette — but their
- * indices stay reserved forever (a shared seed that still carries them decodes
+ * display order. This is deliberately a subset of the full table:
+ *   - Multiply (3) and Overlay (4) are *retired* — muddy against this palette.
+ *   - Darken (11) is retired **at birth** — every pixel fight against the dark
+ *     backgrounds this product lives on goes to the background (same "muddy"
+ *     doctrine that retired Multiply/Overlay; ID reserved forever).
+ * Retired indices stay reserved (a shared seed that still carries them decodes
  * and renders unchanged; see the append-only note at the top of this file).
  * Retiring ≠ renumbering. To retire another mode, drop its ID here only.
  *
  * @type {readonly number[]}
  */
 export const SELECTABLE_BLENDS = Object.freeze([
-  BLEND_NORMAL,     // 0
-  BLEND_ADDITIVE,   // 1
-  BLEND_SCREEN,     // 2
-  BLEND_DIFFERENCE, // 5
-  BLEND_HARD_LIGHT, // 6
+  BLEND_NORMAL,      // 0
+  BLEND_ADDITIVE,    // 1
+  BLEND_SCREEN,      // 2
+  BLEND_DIFFERENCE,  // 5
+  BLEND_HARD_LIGHT,  // 6
+  BLEND_EXCLUSION,   // 7
+  BLEND_COLOR_DODGE, // 8
+  BLEND_SOFT_LIGHT,  // 9
+  BLEND_LIGHTEN,     // 10
+  BLEND_HUE,         // 12
+  BLEND_LUMINOSITY,  // 13
+])
+
+/**
+ * Blends that risk a full-canvas flash on strobing A params — the rule-5
+ * gate in `model/randomize.js` caps `times ≤ 2` on any A param when a
+ * layer's blend is one of these AND its role is overlay or glitch (FR-17).
+ *
+ * Historically hardcoded to `[BLEND_ADDITIVE, BLEND_SCREEN]` inside
+ * randomize.js; moved here in omni-wave S05 so new bright-mode blends can
+ * declare their own flash risk in the same table that defines them.
+ * Color dodge and Lighten also brighten unboundedly against dark stacks;
+ * Exclusion/Soft light/Hue/Luminosity do not and are omitted.
+ *
+ * @type {readonly number[]}
+ */
+export const FLASHY_BLENDS = Object.freeze([
+  BLEND_ADDITIVE,
+  BLEND_SCREEN,
+  BLEND_COLOR_DODGE,
+  BLEND_LIGHTEN,
 ])
 
 /**

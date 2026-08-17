@@ -26,18 +26,21 @@
  * 3. **`difference` never at index 0**: the bottom layer never gets blend 5
  *    (difference), which inverts colours against the background and reads as
  *    a glitch rather than structure. Enforced at generation: index 0 draws
- *    from [0,1,2,3,4,6], excluding 5.
+ *    from `SELECTABLE_BLENDS` minus difference AND exclusion (both invert
+ *    against a bare background — same inversion class, extended by omni-wave
+ *    S05 when Exclusion joined the axis).
  * 4. **Colour ≠ background**: a layer's resolved colour must not equal the
  *    resolved canvas background. The randomizer draws from the `c` and `n`
  *    buckets only (never `b`), and repairs any residual collision.
- * 5. **Flash safety (FR-17)**: full-canvas opacity params on additive/screen
- *    **overlay** and **glitch** layers get `times ≤ 2`. Since the randomizer
- *    cannot know which declared params drive full-canvas alpha (that knowledge
- *    lives in `draw`), the conservative approach caps **every** A param's
- *    `times` to ≤ 2 on additive/screen overlay/glitch layers — including the
- *    envelope opacity. Glitch is a self-blit of the composited frame, so its
- *    strobing is still strobing. At `times` 2 on a 5 s loop, that is 0.4 Hz,
- *    well below the 3 Hz ceiling.
+ * 5. **Flash safety (FR-17)**: full-canvas opacity params on **overlay** and
+ *    **glitch** layers whose blend is in `FLASHY_BLENDS` (additive, screen,
+ *    color-dodge, lighten — the brightening modes; declared in `blend.js`)
+ *    get `times ≤ 2`. Since the randomizer cannot know which declared params
+ *    drive full-canvas alpha (that knowledge lives in `draw`), the
+ *    conservative approach caps **every** A param's `times` to ≤ 2 on those
+ *    layers — including the envelope opacity. Glitch is a self-blit of the
+ *    composited frame, so its strobing is still strobing. At `times` 2 on a
+ *    5 s loop, that is 0.4 Hz, well below the 3 Hz ceiling.
  *
  * ## `Math.random()` — sole entropy source, confined to this module
  *
@@ -73,12 +76,17 @@ import { byRole, get as getLayer } from './registry.js'
 import { createLayer } from './composition.js'
 import { BUILTINS, resolveRef } from './schemes.js'
 import { assign, CHARACTERS } from './motion.js'
-import { BLEND_NORMAL, BLEND_ADDITIVE, BLEND_SCREEN, BLEND_DIFFERENCE, SELECTABLE_BLENDS } from './blend.js'
+import { BLEND_NORMAL, BLEND_DIFFERENCE, BLEND_EXCLUSION, SELECTABLE_BLENDS, FLASHY_BLENDS } from './blend.js'
 import { q3 } from '../util/quantize.js'
 
-// Bottom-layer blends: the selectable set minus difference (taste rule 3,
-// architecture §8.5). Excluding retired modes falls out for free.
-const BOTTOM_BLENDS = SELECTABLE_BLENDS.filter((b) => b !== BLEND_DIFFERENCE)
+// Bottom-layer blends: the selectable set minus difference AND exclusion
+// (taste rule 3, architecture §8.5). Both invert against a bare background —
+// same inversion class; Exclusion joined the axis in omni-wave S05 and was
+// added to the exclusion here at birth. Excluding retired modes falls out
+// for free.
+const BOTTOM_BLENDS = SELECTABLE_BLENDS.filter(
+  (b) => b !== BLEND_DIFFERENCE && b !== BLEND_EXCLUSION,
+)
 
 /**
  * @typedef {import('./params.js').Composition} Composition
@@ -253,15 +261,17 @@ function applyLayerTasteRules(layer, i, scheme) {
     else layer.color = 'FF2E88'
   }
 
-  // Rule 5: flash safety — additive/screen overlay AND glitch layers cap
-  // every A param (incl. envelope opacity) at times ≤ 2 (FR-17). Glitch layers
-  // self-blit the composited frame, so their strobing is still strobing.
-  // generateLayer()'s per-layer reroll runs this same function, so a user
-  // choosing glitch and picking additive/screen manually gets capped too.
+  // Rule 5: flash safety — overlay AND glitch layers whose blend is one of
+  // the bright-mode set (`FLASHY_BLENDS` in blend.js: additive, screen,
+  // color-dodge, lighten) cap every A param (incl. envelope opacity) at
+  // times ≤ 2 (FR-17). Glitch layers self-blit the composited frame, so
+  // their strobing is still strobing. generateLayer()'s per-layer reroll
+  // runs this same function, so a user choosing glitch and picking a flashy
+  // blend manually gets capped too.
   const mod = getLayer(layer.type)
   if (mod === null) return
   if (mod.meta.role !== 'overlay' && mod.meta.role !== 'glitch') return
-  if (layer.blend !== BLEND_ADDITIVE && layer.blend !== BLEND_SCREEN) return
+  if (!FLASHY_BLENDS.includes(layer.blend)) return
   if (layer.opacity.times > 2) layer.opacity.times = 2
   for (const decl of mod.params) {
     if (decl.kind !== 'A') continue

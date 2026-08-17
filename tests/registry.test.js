@@ -1,9 +1,10 @@
 // @ts-check
 /**
- * Pins the two append-only ID spaces: blend modes (7 entries) and layer types
- * (up to 52 across the D4, double-catalog, glitch-effects, omni-wave glitch
- * W2, omni-wave primary W3, and omni-wave secondary W3 waves — the catalog
- * pin below is live, per architecture §5.3 step 3).
+ * Pins the two append-only ID spaces: blend modes (14 entries as of
+ * omni-wave S05 — 7 → 14, 11 selectable after retiring Darken at birth)
+ * and layer types (up to 57 across the D4, double-catalog, glitch-effects,
+ * omni-wave glitch W2, primary W3, secondary W3, and overlay W3 waves —
+ * the catalog pin below is live, per architecture §5.3 step 3).
  *
  * The earlier layer-type assertions are written as invariants that held at
  * every point of the build; the wave suites append literal pins: exact IDs,
@@ -25,7 +26,15 @@ import {
   BLEND_OVERLAY,
   BLEND_DIFFERENCE,
   BLEND_HARD_LIGHT,
+  BLEND_EXCLUSION,
+  BLEND_COLOR_DODGE,
+  BLEND_SOFT_LIGHT,
+  BLEND_LIGHTEN,
+  BLEND_DARKEN,
+  BLEND_HUE,
+  BLEND_LUMINOSITY,
   SELECTABLE_BLENDS,
+  FLASHY_BLENDS,
   coerceBlend,
   blendOp,
   blendName,
@@ -35,7 +44,7 @@ import { get, has, list, byRole, count, register, ROLES } from '../src/model/reg
 suite('blend — append-only ID space (architecture §8.3)', () => {
   test('composite operations are pinned in exact order', () => {
     // Changing a line here silently repaints every seed ever shared.
-    assertEq(BLEND_OPS.length, 7, 'blend count')
+    assertEq(BLEND_OPS.length, 14, 'blend count')
     assertEq(BLEND_OPS[0], 'source-over', 'id 0')
     assertEq(BLEND_OPS[1], 'lighter', 'id 1')
     assertEq(BLEND_OPS[2], 'screen', 'id 2')
@@ -43,6 +52,13 @@ suite('blend — append-only ID space (architecture §8.3)', () => {
     assertEq(BLEND_OPS[4], 'overlay', 'id 4')
     assertEq(BLEND_OPS[5], 'difference', 'id 5')
     assertEq(BLEND_OPS[6], 'hard-light', 'id 6')
+    assertEq(BLEND_OPS[7], 'exclusion', 'id 7')
+    assertEq(BLEND_OPS[8], 'color-dodge', 'id 8')
+    assertEq(BLEND_OPS[9], 'soft-light', 'id 9')
+    assertEq(BLEND_OPS[10], 'lighten', 'id 10')
+    assertEq(BLEND_OPS[11], 'darken', 'id 11')
+    assertEq(BLEND_OPS[12], 'hue', 'id 12')
+    assertEq(BLEND_OPS[13], 'luminosity', 'id 13')
   })
 
   test('named constants match their positions', () => {
@@ -53,11 +69,19 @@ suite('blend — append-only ID space (architecture §8.3)', () => {
     assertEq(BLEND_OVERLAY, 4)
     assertEq(BLEND_DIFFERENCE, 5)
     assertEq(BLEND_HARD_LIGHT, 6)
-    assertEq(BLEND_COUNT, 7)
+    assertEq(BLEND_EXCLUSION, 7)
+    assertEq(BLEND_COLOR_DODGE, 8)
+    assertEq(BLEND_SOFT_LIGHT, 9)
+    assertEq(BLEND_LIGHTEN, 10)
+    assertEq(BLEND_DARKEN, 11)
+    assertEq(BLEND_HUE, 12)
+    assertEq(BLEND_LUMINOSITY, 13)
+    assertEq(BLEND_COUNT, 14)
   })
 
   test('user-facing names match the chips in mocks/layer-editor.html', () => {
-    assertEq(BLEND_NAMES.join('|'), 'Normal|Additive|Screen|Multiply|Overlay|Difference|Hard light')
+    assertEq(BLEND_NAMES.join('|'),
+      'Normal|Additive|Screen|Multiply|Overlay|Difference|Hard light|Exclusion|Color dodge|Soft light|Lighten|Darken|Hue|Luminosity')
   })
 
   test('names and operations stay the same length', () => {
@@ -74,7 +98,7 @@ suite('blend — append-only ID space (architecture §8.3)', () => {
 
   test('an unknown blend ID clamps to normal, never throws (FR-18)', () => {
     assertEq(coerceBlend(-1), 0, 'negative')
-    assertEq(coerceBlend(7), 0, 'one past the end — a mode from a future build')
+    assertEq(coerceBlend(14), 0, 'one past the end — a mode from a future build')
     assertEq(coerceBlend(999), 0, 'far out of range')
     assertEq(coerceBlend(1.5), 0, 'non-integer')
     assertEq(coerceBlend(NaN), 0, 'NaN')
@@ -98,23 +122,47 @@ suite('blend — append-only ID space (architecture §8.3)', () => {
 })
 
 suite('blend — selectable subset (retirement)', () => {
-  test('SELECTABLE_BLENDS excludes Multiply (3) and Overlay (4)', () => {
+  test('SELECTABLE_BLENDS excludes Multiply (3), Overlay (4), and Darken (11)', () => {
     assert(!SELECTABLE_BLENDS.includes(BLEND_MULTIPLY), 'Multiply must be retired')
     assert(!SELECTABLE_BLENDS.includes(BLEND_OVERLAY), 'Overlay must be retired')
+    // Darken (11) is retired at birth — same "muddy against dark backgrounds"
+    // doctrine as Multiply/Overlay; ID reserved forever (omni-wave S05).
+    assert(!SELECTABLE_BLENDS.includes(BLEND_DARKEN), 'Darken must be retired at birth')
   })
-  test('SELECTABLE_BLENDS is exactly [0,1,2,5,6]', () => {
-    assertEq(SELECTABLE_BLENDS.join(','), '0,1,2,5,6')
+  test('SELECTABLE_BLENDS is exactly [0,1,2,5,6,7,8,9,10,12,13]', () => {
+    assertEq(SELECTABLE_BLENDS.join(','), '0,1,2,5,6,7,8,9,10,12,13')
   })
   test('every selectable id is a real, in-range blend', () => {
     for (const id of SELECTABLE_BLENDS) assertEq(coerceBlend(id), id, `id ${id}`)
   })
   test('the full table is untouched — retirement never renumbers', () => {
-    assertEq(BLEND_COUNT, 7)
+    assertEq(BLEND_COUNT, 14)
     assertEq(BLEND_NAMES[3], 'Multiply')
     assertEq(BLEND_NAMES[4], 'Overlay')
+    assertEq(BLEND_NAMES[11], 'Darken')
   })
   test('SELECTABLE_BLENDS is frozen', () => {
     assertThrows(() => { /** @type {any} */ (SELECTABLE_BLENDS)[0] = 42 }, 'must be frozen')
+  })
+})
+
+suite('blend — FLASHY_BLENDS (rule-5 flash-cap gate, FR-17)', () => {
+  test('FLASHY_BLENDS is exactly [1,2,8,10] — additive, screen, color-dodge, lighten', () => {
+    assertEq(FLASHY_BLENDS.join(','), '1,2,8,10')
+  })
+  test('every flashy id is selectable — the cap only matters for producible blends', () => {
+    for (const id of FLASHY_BLENDS) {
+      assert(SELECTABLE_BLENDS.includes(id), `flashy id ${id} must also be selectable`)
+    }
+  })
+  test('non-brightening modes are NOT flashy — soft-light, hue, luminosity, exclusion', () => {
+    assert(!FLASHY_BLENDS.includes(BLEND_SOFT_LIGHT), 'Soft light does not saturate to white')
+    assert(!FLASHY_BLENDS.includes(BLEND_HUE), 'Hue swaps chroma, not luma')
+    assert(!FLASHY_BLENDS.includes(BLEND_LUMINOSITY), 'Luminosity swaps luma, not intensity')
+    assert(!FLASHY_BLENDS.includes(BLEND_EXCLUSION), 'Exclusion inverts, does not brighten')
+  })
+  test('FLASHY_BLENDS is frozen', () => {
+    assertThrows(() => { /** @type {any} */ (FLASHY_BLENDS)[0] = 42 }, 'must be frozen')
   })
 })
 
