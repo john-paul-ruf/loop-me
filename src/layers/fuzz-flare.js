@@ -18,6 +18,26 @@
  *
  * **PRNG consumption order (FR-4, binding):** per burst ascending —
  * x draw, y draw, size-multiplier draw. 3 × burstCount draws, nothing else.
+ *
+ * **per-effect-glow reference — the animate-existing-glow archetype.**
+ *
+ * Fuzz Flare's whole point IS additive glow — the layer was self-glowing
+ * before the feature landed. So the standard `glowStrength` envelope hooks
+ * into the existing `ctx.globalAlpha × intensity` multiplication instead of
+ * gaining a second additive pass: `α ← α × intensity × glowStrength`. Draw
+ * calls, path ops, and blend op are unchanged; `worstCase` stays `[8, 8]`.
+ *
+ * **The `{min:1,max:1}` default exception (SESSION-01 Design Decision).**
+ * The append-only backward-compat contract requires every pre-glow seed to
+ * render byte-identical after this feature. For every OTHER glowing layer
+ * that means default `{min:0,max:0}` (glow off ⇒ pre-glow output). For Fuzz
+ * Flare the pre-glow output already WAS the glow: intensity alone drove it.
+ * Multiplying by a new param defaulting to 0 would blank every pre-glow
+ * seed. So Fuzz Flare's `glowStrength` defaults to `{min:1,max:1}` — the
+ * multiplicative identity for its `α × intensity × 1` — and animated
+ * modulation is what the new param adds. This is the only glowing layer
+ * whose glow default is 1, not 0; S08's "every non-glitch layer glows"
+ * gate enforces the exception by ID.
  */
 
 import { A, S } from '../model/params.js'
@@ -29,6 +49,8 @@ export const meta = {
   name: 'Fuzz Flare',
   role: 'overlay',
   blurb: 'Soft glow bursts drifting over everything beneath.',
+  // Unchanged — `glowStrength` folds into the existing alpha multiplication,
+  // adding zero draw calls and zero path ops.
   worstCase: { pathOps: 8, drawCalls: 8 },
   fullCanvasOpaque: false,
 }
@@ -39,6 +61,12 @@ export const params = [
   A('radius', 100, 900, { default: { min: 200, max: 480 } }),
   A('intensity', 0.05, 1.0, { default: { min: 0.3, max: 0.7 } }),
   S.num('spread', 0, 1, { default: 0.6 }),
+  // Appended LAST — feature per-effect-glow. Default `{min:1,max:1}` is the
+  // documented exception (see the file header): pre-glow Fuzz Flare *was* the
+  // glow, so its neutral (byte-identical) value is 1, not 0. `α × intensity ×
+  // 1` reproduces the pre-glow frame exactly; animating the range adds the
+  // new modulation on top of the existing intensity envelope.
+  A('glowStrength', 0, 1, { default: { min: 1, max: 1 } }),
 ]
 
 const CX = 540
@@ -99,10 +127,14 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const radius = /** @type {number} */ (resolved.radius)
   const intensity = /** @type {number} */ (resolved.intensity)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { bursts, glow, bx, by, mult } = prepared
 
   // Composes with the envelope alpha the painter already set (Flag 4 posture).
-  ctx.globalAlpha = ctx.globalAlpha * intensity
+  // `glowStrength` (per-effect-glow) folds into the same multiplication rather
+  // than adding a second additive pass — pre-glow output already IS the glow;
+  // see the file header for why the default is `{min:1,max:1}`.
+  ctx.globalAlpha = ctx.globalAlpha * intensity * gs
   ctx.fillStyle = glow
   for (let i = 0; i < bursts; i++) {
     const s = radius * mult[i]

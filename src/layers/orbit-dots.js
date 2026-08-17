@@ -18,6 +18,24 @@
  * **PRNG consumption order (FR-4, binding):** for each ring, ascending —
  * one draw for the phase jitter, one for the size multiplier. 2 × ringCount
  * draws total, nothing else.
+ *
+ * **per-effect-glow reference — the fill/dot budget archetype.**
+ *
+ * A per-dot `glowSprite` would be 192 additive blits at worst case, well past
+ * the original 8-drawCall budget. Instead this layer copies the crisp dot
+ * path once more under `globalCompositeOperation = 'lighter'` with the dot
+ * radius widened by `K_GLOW` — one extra `fill()` per ring (8 more calls),
+ * same number of arc pathOps per pass. That's option B in the SESSION-01
+ * decision matrix ("a single additive re-fill of the whole dot path at a
+ * widened dot radius") — chosen over option A (per-ring `glowSprite`) because
+ * a single sprite per ring reads as an asymmetric spot rather than a per-dot
+ * halo, and this layer's identity is *the dots themselves*.
+ *
+ * S03/S05/S06 fill/dot layers copy this pattern verbatim: widen the mark
+ * radius, re-issue the fill under 'lighter', bump `worstCase` by exactly one
+ * extra pass. Sprite-based glow (`glowGradient` + `glowSprite`) remains
+ * available in `src/util/glow.js` for texture overlays whose "mark" is a
+ * gradient itself (see `fuzz-flare.js`).
  */
 
 import { A, S } from '../model/params.js'
@@ -29,7 +47,10 @@ export const meta = {
   name: 'Orbit Dots',
   role: 'primary',
   blurb: 'Constellations of dots riding invisible orbits.',
-  worstCase: { pathOps: 192, drawCalls: 8 },
+  // Worst case doubles under the glow pass: one extra widened `fill()` per
+  // ring (8 → 16 drawCalls) and one extra widened dot path per ring
+  // (192 → 384 arc pathOps).
+  worstCase: { pathOps: 384, drawCalls: 16 },
   fullCanvasOpaque: false,
 }
 
@@ -41,6 +62,10 @@ export const params = [
   S.int('ringGap', 40, 220, { default: 120 }),
   A('dotRadius', 2, 30, { default: { min: 6, max: 14 } }),
   S.num('rateSpread', 0.5, 3.0, { default: 1.5 }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
@@ -48,6 +73,14 @@ const CY = 960
 const TWO_PI = Math.PI * 2
 /** ±30° anchor jitter — see the header for why this bound is load-bearing. */
 const JITTER = Math.PI / 3
+/**
+ * Dot-radius multiplier for the additive re-fill glow pass. Tuned visually:
+ * below 1.4 the halo hides inside the crisp dot at every declared radius;
+ * above 2.5 adjacent dots' halos merge into an ambient smear on the tightest
+ * `dotsPerRing`. 1.8 gives every dot a clearly wider ring of light without
+ * bleeding the constellation into a wash.
+ */
+const K_GLOW = 1.8
 
 /**
  * @typedef {object} OrbitDotsPrepared
@@ -100,9 +133,37 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const base = /** @type {number} */ (resolved.baseRadius)
   const dotR = /** @type {number} */ (resolved.dotRadius)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { rings, dots, gap, step, phase, mult } = prepared
 
   ctx.fillStyle = prepared.color
+
+  // Glow pass — drawn FIRST so the crisp dots sit on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip the pass entirely for byte-identical
+  // pre-glow output. Same dot geometry, radius scaled by `K_GLOW`, colour
+  // re-filled under 'lighter'. See `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    for (let i = 0; i < rings; i++) {
+      const r = base + i * gap
+      const dr = dotR * mult[i] * K_GLOW
+      ctx.beginPath()
+      for (let d = 0; d < dots; d++) {
+        const a = phase[i] + d * step
+        const x = CX + Math.cos(a) * r
+        const y = CY + Math.sin(a) * r
+        ctx.moveTo(x + dr, y)
+        ctx.arc(x, y, dr, 0, TWO_PI)
+      }
+      ctx.fill()
+    }
+    ctx.restore()
+    // `fillStyle` survives `restore()` since it was set before `save()`.
+  }
+
   for (let i = 0; i < rings; i++) {
     const r = base + i * gap
     const dr = dotR * mult[i]
