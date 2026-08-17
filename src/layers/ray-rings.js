@@ -15,6 +15,16 @@
  * Imports `model/params.js` only (§4 rule 2). Consumes no PRNG draws — this
  * layer derives no random positions; the consumption-order contract makes
  * "zero draws" as binding as any other count.
+ *
+ * **per-effect-glow (feature per-effect-glow, FR-6 additive AC).** When
+ * `glowStrength > 0`, `draw` runs a matching accumulated pass BEFORE the
+ * crisp pass under `globalCompositeOperation = 'lighter'`: the stroke branch
+ * re-strokes the same rays at `thickness × K_GLOW` (wide-additive-re-stroke,
+ * mirror of `pulse-rings.js`); the taper branch re-fills the same triangles
+ * built with `hw × K_GLOW` (widened re-fill, mirror of `orbit-dots.js` option
+ * B). No `shadowBlur` (FR-6). `glowStrength` is appended LAST with default
+ * `{min:0,max:0}` (§9.2/§9.5): pre-glow seeds decode to `gs === 0`, which is
+ * a hard no-op → byte-identical render.
  */
 
 import { A, S } from '../model/params.js'
@@ -25,7 +35,9 @@ export const meta = {
   name: 'Ray Rings',
   role: 'primary',
   blurb: 'Rays bursting from a centre ring, sweeping and breathing.',
-  worstCase: { pathOps: 64, drawCalls: 2 },
+  // Worst case doubles under the glow pass: path built twice (128 pathOps),
+  // fill or stroke drawn twice (4 draw calls — 2 halo + 2 crisp bounds).
+  worstCase: { pathOps: 128, drawCalls: 4 },
   fullCanvasOpaque: false,
 }
 
@@ -37,11 +49,21 @@ export const params = [
   A('thickness', 1, 24, { default: { min: 2, max: 7 } }),
   A('rotation', 0, 360, { unit: '°', wrap: true }),
   S.bool('taper'),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
 const CY = 960
 const DEG = Math.PI / 180
+/**
+ * Halo width multiplier — widens `thickness` (stroke) or `hw` (taper base).
+ * 2.5 mirrors `pulse-rings.js`; at max `thickness = 24`, the halo stroke is
+ * 60 px — wide enough to read as a halo, within the doubled worstCase.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} RayRingsPrepared
@@ -90,12 +112,52 @@ export function draw(ctx, resolved, prepared, palette) {
   const len = /** @type {number} */ (resolved.length)
   const thick = /** @type {number} */ (resolved.thickness)
   const rot = /** @type {number} */ (resolved.rotation) * DEG
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const r1 = r0 + len
   const { count, cos, sin } = prepared
 
   // Animated rotation as a transform: the cached unit vectors stay valid.
   ctx.translate(CX, CY)
   ctx.rotate(rot)
+
+  // Glow pass — drawn FIRST so the crisp rays sit on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip entirely for byte-identical pre-glow
+  // output. See `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.beginPath()
+    if (prepared.taper) {
+      // Widened re-fill: same triangles, base widened `× K_GLOW` — apex still
+      // at r1, so each halo triangle envelops its crisp partner.
+      const hwHalo = (thick * K_GLOW) / 2
+      for (let i = 0; i < count; i++) {
+        const c = cos[i]
+        const s = sin[i]
+        ctx.moveTo(c * r0 - s * hwHalo, s * r0 + c * hwHalo)
+        ctx.lineTo(c * r0 + s * hwHalo, s * r0 - c * hwHalo)
+        ctx.lineTo(c * r1, s * r1)
+        ctx.closePath()
+      }
+      ctx.fillStyle = prepared.color
+      ctx.fill()
+    } else {
+      // Wide-additive-re-stroke: same lines, `lineWidth × K_GLOW`.
+      for (let i = 0; i < count; i++) {
+        const c = cos[i]
+        const s = sin[i]
+        ctx.moveTo(c * r0, s * r0)
+        ctx.lineTo(c * r1, s * r1)
+      }
+      ctx.strokeStyle = prepared.color
+      ctx.lineWidth = thick * K_GLOW
+      ctx.lineCap = 'round'
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
 
   ctx.beginPath()
   if (prepared.taper) {

@@ -18,6 +18,14 @@
  * **PRNG consumption order (FR-4, binding):** for each gate, ascending —
  * one draw for the angular offset, one for the rate multiplier.
  * 2 × gateCount draws total, nothing else.
+ *
+ * **per-effect-glow (feature per-effect-glow, FR-6 additive AC).** When
+ * `glowStrength > 0`, `draw` re-runs the gate loop once BEFORE the crisp
+ * pass under `globalCompositeOperation = 'lighter'` at `lineWidth × K_GLOW`
+ * — the canonical wide-additive-re-stroke archetype (see `src/util/glow.js`
+ * and the `pulse-rings.js` reference). No `shadowBlur` (FR-6). `glowStrength`
+ * is appended LAST with default `{min:0,max:0}` (§9.2/§9.5): pre-glow seeds
+ * decode to `gs === 0`, which is a hard no-op → byte-identical render.
  */
 
 import { A, S } from '../model/params.js'
@@ -29,7 +37,8 @@ export const meta = {
   name: 'Arc Gates',
   role: 'primary',
   blurb: 'Thick arc segments at several radii, rotating independently.',
-  worstCase: { pathOps: 10, drawCalls: 10 },
+  // Worst case doubles under the glow pass: 10 crisp arcs + 10 halo arcs.
+  worstCase: { pathOps: 20, drawCalls: 20 },
   fullCanvasOpaque: false,
 }
 
@@ -41,12 +50,22 @@ export const params = [
   S.int('radiusStep', 40, 200, { default: 90 }),
   A('rotation', 0, 360, { unit: '°', wrap: true }),
   S.num('rateSpread', 0.5, 3.0, { default: 1.5 }),
+  // Appended LAST — feature per-effect-glow. Default `{min:0,max:0}` ⇒ every
+  // pre-glow seed decodes to glow-off via `clampComposition`, so `gs === 0` is
+  // a hard no-op in `draw` and the render is byte-identical to pre-glow.
+  A('glowStrength', 0, 1, { default: { min: 0, max: 0 } }),
 ]
 
 const CX = 540
 const CY = 960
 const DEG = Math.PI / 180
 const TWO_PI = Math.PI * 2
+/**
+ * Halo width multiplier for the glow re-stroke. 2.5 keeps the halo clearly
+ * wider than the arc at every `weight` without bleeding neighbouring gates
+ * together — mirrors `pulse-rings.js` tuning.
+ */
+const K_GLOW = 2.5
 
 /**
  * @typedef {object} ArcGatesPrepared
@@ -97,11 +116,33 @@ export function draw(ctx, resolved, prepared, palette) {
   void palette
   const half = (/** @type {number} */ (resolved.arcSpan) * DEG) / 2
   const rot = /** @type {number} */ (resolved.rotation) * DEG
+  const weight = /** @type {number} */ (resolved.weight)
+  const gs = /** @type {number} */ (resolved.glowStrength)
   const { count, radii, offset, mult } = prepared
 
   ctx.strokeStyle = prepared.color
-  ctx.lineWidth = /** @type {number} */ (resolved.weight)
   ctx.lineCap = 'round'
+
+  // Glow pass — drawn FIRST so the crisp arcs sit on top (halo under mark).
+  // `gs === 0` is a hard no-op: skip entirely for byte-identical pre-glow
+  // output. See `src/util/glow.js` for the canonical idiom.
+  if (gs > 0) {
+    const a0 = ctx.globalAlpha
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = a0 * gs
+    ctx.lineWidth = weight * K_GLOW
+    for (let g = 0; g < count; g++) {
+      const a = rot * mult[g] + offset[g]
+      ctx.beginPath()
+      ctx.arc(CX, CY, radii[g], a - half, a + half)
+      ctx.stroke()
+    }
+    ctx.restore()
+    // `strokeStyle` and `lineCap` survive `restore()` — set before `save()`.
+  }
+
+  ctx.lineWidth = weight
   for (let g = 0; g < count; g++) {
     const a = rot * mult[g] + offset[g]
     ctx.beginPath()
